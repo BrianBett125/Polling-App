@@ -2,11 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { supabase } from './supabase';
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
+import { PollInsert, PollOptionInsert, Database } from './database.types';
+import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
 
 // Function to ensure tables exist
 async function ensureTablesExist() {
+  const cookieStore = cookies();
+  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
   try {
     // Check if polls table exists
     const { error: pollsError } = await supabase.from('polls').select('id').limit(1);
@@ -15,15 +18,15 @@ async function ensureTablesExist() {
       console.log('Tables do not exist. Creating them...');
       
       // Create polls table using direct SQL
+      const pollData: PollInsert = { 
+        title: 'Sample Poll', 
+        description: 'This is a sample poll to initialize the table',
+        created_by: null 
+      };
+      
       const { data: pollsData, error: createPollsError } = await supabase
         .from('polls')
-        .insert([
-          { 
-            title: 'Sample Poll', 
-            description: 'This is a sample poll to initialize the table',
-            created_by: null 
-          }
-        ])
+        .insert([pollData])
         .select();
       
       if (createPollsError) {
@@ -33,12 +36,14 @@ async function ensureTablesExist() {
         
         // Create poll_options table by adding options to the sample poll
         if (pollsData && pollsData.length > 0) {
+          const pollOptions: PollOptionInsert[] = [
+            { poll_id: pollsData[0].id, text: 'Option 1', votes: 0 },
+            { poll_id: pollsData[0].id, text: 'Option 2', votes: 0 }
+          ];
+          
           const { error: createOptionsError } = await supabase
             .from('poll_options')
-            .insert([
-              { poll_id: pollsData[0].id, text: 'Option 1', votes: 0 },
-              { poll_id: pollsData[0].id, text: 'Option 2', votes: 0 }
-            ]);
+            .insert(pollOptions);
           
           if (createOptionsError) {
             console.error('Error creating poll_options table:', createOptionsError);
@@ -54,18 +59,10 @@ async function ensureTablesExist() {
   }
 }
 
-type PollOption = {
-  text: string;
-};
-
-type CreatePollFormData = {
-  title: string;
-  description: string;
-  options: PollOption[];
-};
-
 // Function to vote for a poll option
 export async function voteForOption(optionId: string, pollId: string) {
+  const cookieStore = cookies();
+  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
   try {
     // Get client IP address from headers
     const headersList = headers();
@@ -95,6 +92,8 @@ export async function voteForOption(optionId: string, pollId: string) {
 }
 
 export async function createPoll(formData: FormData) {
+  const cookieStore = cookies();
+  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
   
@@ -119,21 +118,27 @@ export async function createPoll(formData: FormData) {
   try {
     // Ensure tables exist before proceeding
     await ensureTablesExist();
+    
+    // Get current user if authenticated
+    const { data: { user } } = await supabase.auth.getUser();
+    
     // Insert poll into database
+    const pollData: PollInsert = {
+      title,
+      description,
+      created_by: user?.id || null, // Allow null for anonymous users
+    };
+    
     const { data: poll, error: pollError } = await supabase
       .from('polls')
-      .insert({
-        title,
-        description,
-        created_by: (await supabase.auth.getUser()).data.user?.id,
-      })
+      .insert(pollData)
       .select('id')
       .single();
     
     if (pollError) throw pollError;
     
     // Insert options
-    const pollOptions = options.map(option => ({
+    const pollOptions: PollOptionInsert[] = options.map(option => ({
       poll_id: poll.id,
       text: option.text,
       votes: 0,

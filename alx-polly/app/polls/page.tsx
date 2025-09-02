@@ -2,14 +2,40 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProtectedRoute } from '@/components/protected-route';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Database } from '@/lib/database.types';
 
-export default function PollsPage() {
-  // Sample polls data - in a real app, this would come from Supabase
-  const samplePolls = [
-    { id: '1', title: 'Favorite Programming Language', votes: 42 },
-    { id: '2', title: 'Best Frontend Framework', votes: 36 },
-    { id: '3', title: 'Most Useful Developer Tool', votes: 28 },
-  ];
+export default async function PollsPage() {
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+  // Fetch polls from Supabase
+  const { data: polls, error } = await supabase
+    .from('polls')
+    .select(`
+      id,
+      title,
+      poll_options (votes)
+    `)
+    .order('created_at', { ascending: false });
+  
+  if (error) {
+    console.error('Error fetching polls:', error);
+  }
+  
+  // Process polls to calculate total votes
+  const processedPolls = polls?.map((poll: any) => {
+    const totalVotes = poll.poll_options?.reduce(
+      (sum: number, option: { votes: number }) => sum + (option.votes || 0), 
+      0
+    ) || 0;
+    
+    return {
+      id: poll.id,
+      title: poll.title,
+      votes: totalVotes
+    };
+  }) || [];
 
   return (
     <ProtectedRoute>
@@ -22,7 +48,12 @@ export default function PollsPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {samplePolls.map((poll) => (
+          {processedPolls.length === 0 && (
+            <div className="col-span-full text-center py-10">
+              <p className="text-muted-foreground">No polls found. Create your first poll!</p>
+            </div>
+          )}
+          {processedPolls.map((poll) => (
             <Card key={poll.id}>
               <CardHeader>
                 <CardTitle className="line-clamp-2">{poll.title}</CardTitle>

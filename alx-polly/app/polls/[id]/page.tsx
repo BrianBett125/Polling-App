@@ -1,10 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProtectedRoute } from '@/components/protected-route';
-import { supabase } from '@/lib/supabase';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Database } from '@/lib/database.types';
 import VoteButton from './vote-button';
 
 // Fetch poll data from Supabase
 async function getPollData(pollId: string) {
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
   const { data: poll, error: pollError } = await supabase
     .from('polls')
     .select('id, title, description, created_by')
@@ -59,7 +63,7 @@ export default async function PollDetailPage({ params }: { params: { id: string 
             <CardTitle>Vote</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {poll.options.map((option) => (
+            {poll.options.map((option: any) => (
               <div key={option.id} className="flex items-center justify-between p-3 border rounded-md">
                 <div>
                   <div className="font-medium">{option.text}</div>
