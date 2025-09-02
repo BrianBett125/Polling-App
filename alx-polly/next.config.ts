@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Silence multiple lockfiles warning by telling Next the tracing root
+  experimental: {
+    outputFileTracingRoot: path.join(__dirname, ".."),
+  },
 };
 
 export default nextConfig;
