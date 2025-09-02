@@ -4,6 +4,7 @@ import "./globals.css";
 import MainNav from "@/components/main-nav";
 import { AuthProvider } from "@/contexts/auth-context";
 import { AuthStatus } from "@/components/auth-status";
+import PollCreatedToast from "@/components/PollCreatedToast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,6 +44,7 @@ export default function RootLayout({
           </div>
         </header>
         <main className="container mx-auto p-4">{children}</main>
+        <PollCreatedToast />
         </AuthProvider>
       </body>
     </html>

@@ -5,16 +5,22 @@ import { ProtectedRoute } from '@/components/protected-route';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/lib/database.types';
+import { deletePollAction } from '@/lib/actions';
 
 export default async function PollsPage() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
-  // Fetch polls from Supabase
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // Fetch polls including owner id
   const { data: polls, error } = await supabase
     .from('polls')
     .select(`
       id,
       title,
+      created_by,
       poll_options (votes)
     `)
     .order('created_at', { ascending: false });
@@ -23,19 +29,19 @@ export default async function PollsPage() {
     console.error('Error fetching polls:', error);
   }
   
-  // Process polls to calculate total votes
-  const processedPolls = polls?.map((poll: any) => {
+  const processedPolls = (polls || []).map((poll: any) => {
     const totalVotes = poll.poll_options?.reduce(
       (sum: number, option: { votes: number }) => sum + (option.votes || 0), 
       0
     ) || 0;
-    
     return {
       id: poll.id,
       title: poll.title,
-      votes: totalVotes
+      votes: totalVotes,
+      created_by: poll.created_by as string | null,
+      isOwner: !!user && poll.created_by === user.id,
     };
-  }) || [];
+  });
 
   return (
     <ProtectedRoute>
@@ -61,10 +67,23 @@ export default async function PollsPage() {
               <CardContent>
                 <p className="text-sm text-muted-foreground">{poll.votes} votes</p>
               </CardContent>
-              <CardFooter>
-                <Button variant="outline" asChild className="w-full">
-                  <Link href={`/polls/${poll.id}`}>View poll</Link>
+              <CardFooter className="flex gap-2">
+                <Button variant="outline" asChild className="flex-1">
+                  <Link href={`/polls/${poll.id}`}>View</Link>
                 </Button>
+                {poll.isOwner && (
+                  <>
+                    <Button variant="secondary" asChild className="flex-1">
+                      <Link href={`/polls/${poll.id}/edit`}>Edit</Link>
+                    </Button>
+                    <form action={deletePollAction} className="flex-1">
+                      <input type="hidden" name="id" value={poll.id} />
+                      <Button variant="destructive" className="w-full" type="submit">
+                        Delete
+                      </Button>
+                    </form>
+                  </>
+                )}
               </CardFooter>
             </Card>
           ))}

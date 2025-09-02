@@ -7,7 +7,7 @@ import VoteButton from './vote-button';
 
 // Fetch poll data from Supabase
 async function getPollData(pollId: string) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
   const { data: poll, error: pollError } = await supabase
     .from('polls')
@@ -40,8 +40,9 @@ async function getPollData(pollId: string) {
   };
 }
 
-export default async function PollDetailPage({ params }: { params: { id: string } }) {
-  const pollId = params.id;
+export default async function PollDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const awaitedParams = await params;
+  const pollId = awaitedParams.id;
   const poll = await getPollData(pollId) || {
     id: pollId,
     title: 'Poll not found',

@@ -8,7 +8,7 @@ import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
 
 // Function to ensure tables exist
 async function ensureTablesExist() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
   try {
     // Check if polls table exists
@@ -61,11 +61,11 @@ async function ensureTablesExist() {
 
 // Function to vote for a poll option
 export async function voteForOption(optionId: string, pollId: string) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
   try {
     // Get client IP address from headers
-    const headersList = headers();
+    const headersList = await headers();
     const forwardedFor = headersList.get('x-forwarded-for');
     const ipAddress = forwardedFor ? forwardedFor.split(',')[0] : '127.0.0.1';
     
@@ -92,7 +92,7 @@ export async function voteForOption(optionId: string, pollId: string) {
 }
 
 export async function createPoll(formData: FormData) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
@@ -115,10 +115,9 @@ export async function createPoll(formData: FormData) {
     throw new Error('At least two options are required');
   }
   
+  let newPollId: string | null = null;
   try {
-    // Ensure tables exist before proceeding
-    await ensureTablesExist();
-    
+    // DO NOT auto-create tables here; assume migrations applied
     // Get current user if authenticated
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -136,6 +135,7 @@ export async function createPoll(formData: FormData) {
       .single();
     
     if (pollError) throw pollError;
+    newPollId = poll.id;
     
     // Insert options
     const pollOptions: PollOptionInsert[] = options.map(option => ({
@@ -152,11 +152,70 @@ export async function createPoll(formData: FormData) {
     
     // Revalidate the polls page to show the new poll
     revalidatePath('/polls');
-    
-    // Redirect to the new poll
-    return redirect(`/polls/${poll.id}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating poll:', error);
     throw new Error('Failed to create poll. Please try again.');
   }
+
+  // Perform redirect OUTSIDE the try/catch so it is not swallowed
+  if (newPollId) {
+    return redirect(`/polls?created=1`);
+  }
+  
+  throw new Error('Failed to create poll. Please try again.');
+}
+
+export async function deletePollAction(formData: FormData) {
+  const cookieStore = await cookies();
+  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
+  const pollId = formData.get('id') as string;
+
+  if (!pollId) throw new Error('Missing poll id');
+
+  // Ensure user is authenticated
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Restrict deletion to polls owned by the user
+  const { error } = await supabase
+    .from('polls')
+    .delete()
+    .eq('id', pollId)
+    .eq('created_by', user.id);
+
+  if (error) {
+    console.error('Error deleting poll:', error);
+    throw new Error('Failed to delete poll');
+  }
+
+  revalidatePath('/polls');
+}
+
+export async function updatePollAction(formData: FormData) {
+  const cookieStore = await cookies();
+  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
+  const id = formData.get('id') as string;
+  const title = (formData.get('title') as string) || '';
+  const description = (formData.get('description') as string) || '';
+
+  if (!id) throw new Error('Missing poll id');
+  if (!title.trim()) throw new Error('Title is required');
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('polls')
+    .update({ title, description })
+    .eq('id', id)
+    .eq('created_by', user.id);
+
+  if (error) {
+    console.error('Error updating poll:', error);
+    throw new Error('Failed to update poll');
+  }
+
+  revalidatePath('/polls');
+  revalidatePath(`/polls/${id}`);
+  redirect('/polls');
 }
