@@ -5,8 +5,7 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/lib/database.types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import EditPollForm from '@/components/EditPollForm';
 import { updatePollAction } from '@/lib/actions';
 import { ProtectedRoute } from '@/components/protected-route';
 
@@ -47,17 +46,7 @@ export default async function EditPollPage({ params }: { params: { id: string } 
             <CardTitle>Edit poll</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action={updatePollAction} id="edit-poll-form" className="space-y-4">
-              <input type="hidden" name="id" value={poll.id} />
-              <div className="space-y-2">
-                <label htmlFor="title" className="text-sm font-medium">Title</label>
-                <Input id="title" name="title" defaultValue={poll.title} required />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="description" className="text-sm font-medium">Description</label>
-                <Textarea id="description" name="description" defaultValue={poll.description ?? ''} />
-              </div>
-            </form>
+            <EditPollForm poll={poll} />
           </CardContent>
           <CardFooter className="flex gap-2 justify-end">
             <Button variant="outline" asChild>
