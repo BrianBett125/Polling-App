@@ -14,34 +14,23 @@ export default async function PollsPage() {
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Fetch polls including owner id
+  // Fetch polls with pre-aggregated total votes from the DB view
   const { data: polls, error } = await supabase
-    .from('polls')
-    .select(`
-      id,
-      title,
-      created_by,
-      poll_options (votes)
-    `)
+    .from('polls_with_totals')
+    .select('id, title, created_by, created_at, total_votes')
     .order('created_at', { ascending: false });
-  
+
   if (error) {
-    console.error('Error fetching polls:', error);
+    console.error('Error fetching polls_with_totals:', error);
   }
-  
-  const processedPolls = (polls || []).map((poll: any) => {
-    const totalVotes = poll.poll_options?.reduce(
-      (sum: number, option: { votes: number }) => sum + (option.votes || 0), 
-      0
-    ) || 0;
-    return {
-      id: poll.id,
-      title: poll.title,
-      votes: totalVotes,
-      created_by: poll.created_by as string | null,
-      isOwner: !!user && poll.created_by === user.id,
-    };
-  });
+
+  const processedPolls = (polls || []).map((poll: any) => ({
+    id: poll.id,
+    title: poll.title,
+    votes: poll.total_votes ?? 0,
+    created_by: poll.created_by as string | null,
+    isOwner: !!user && poll.created_by === user?.id,
+  }));
 
   return (
     <ProtectedRoute>
