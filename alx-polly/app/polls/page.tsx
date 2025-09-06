@@ -6,67 +6,105 @@ import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/lib/database.types';
 import { deletePollAction } from '@/lib/actions';
+import { ConfirmDeleteButton } from '@/components/ConfirmDeleteButton';
 
-export default async function PollsPage() {
+export default async function PollsPage({
+  searchParams,
+}: {
+  searchParams?: { mine?: string };
+}) {
   const cookieStore = await cookies();
   const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
 
   // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const onlyMine = searchParams?.mine === '1' || searchParams?.mine === 'true';
 
   // Fetch polls with pre-aggregated total votes from the DB view (with fallback)
-  const { data: pollsView, error: viewError } = await supabase
-    .from('polls_with_totals')
-    .select('id, title, created_by, created_at, total_votes')
-    .order('created_at', { ascending: false });
-
   let processedPolls: { id: string; title: string; votes: number; created_by: string | null; isOwner: boolean }[] = [];
 
-  if (!viewError && pollsView) {
-    processedPolls = (pollsView || []).map((poll: any) => ({
-      id: poll.id,
-      title: poll.title,
-      votes: poll.total_votes ?? 0,
-      created_by: poll.created_by as string | null,
-      isOwner: !!user && poll.created_by === user?.id,
-    }));
-  } else {
-    // Fallback: fetch polls and sum votes from poll_options
-    if (viewError) {
-      console.error('Error fetching polls_with_totals:', viewError);
-    }
-    const { data: pollsFallback, error: fallbackError } = await supabase
-      .from('polls')
-      .select(`
-        id, title, created_by, created_at,
-        poll_options ( votes )
-      `)
+  try {
+    let viewQuery = supabase
+      .from('polls_with_totals')
+      .select('id, title, created_by, created_at, total_votes')
       .order('created_at', { ascending: false });
 
-    if (fallbackError) {
-      console.error('Error fetching polls (fallback):', fallbackError);
+    if (onlyMine && user?.id) {
+      viewQuery = viewQuery.eq('created_by', user.id);
     }
 
-    const safe = (pollsFallback || []) as any[];
-    processedPolls = safe.map((p: any) => {
-      const votes = Array.isArray(p.poll_options)
-        ? (p.poll_options as any[]).reduce((sum, po: any) => sum + (po?.votes ?? 0), 0)
-        : 0;
-      return {
-        id: p.id,
-        title: p.title,
-        votes,
-        created_by: p.created_by as string | null,
-        isOwner: !!user && p.created_by === user?.id,
-      };
-    });
+    const { data: pollsView, error: viewError } = await viewQuery;
+
+    if (!viewError && pollsView) {
+      processedPolls = (pollsView || []).map((poll: any) => ({
+        id: poll.id,
+        title: poll.title,
+        votes: poll.total_votes ?? 0,
+        created_by: poll.created_by as string | null,
+        isOwner: !!user && poll.created_by === user?.id,
+      }));
+    } else {
+      // Fallback: fetch polls and sum votes from poll_options
+      if (viewError) {
+        console.error('Error fetching polls_with_totals:', viewError);
+      }
+
+      let fbQuery = supabase
+        .from('polls')
+        .select(
+          `
+        id, title, created_by, created_at,
+        poll_options ( votes )
+      `,
+        )
+        .order('created_at', { ascending: false });
+
+      if (onlyMine && user?.id) {
+        fbQuery = fbQuery.eq('created_by', user.id);
+      }
+
+      const { data: pollsFallback, error: fallbackError } = await fbQuery;
+
+      if (fallbackError) {
+        console.error('Error fetching polls (fallback):', fallbackError);
+      }
+
+      const safe = (pollsFallback || []) as any[];
+      processedPolls = safe.map((p: any) => {
+        const votes = Array.isArray(p.poll_options)
+          ? (p.poll_options as any[]).reduce((sum, po: any) => sum + (po?.votes ?? 0), 0)
+          : 0;
+        return {
+          id: p.id,
+          title: p.title,
+          votes,
+          created_by: p.created_by as string | null,
+          isOwner: !!user && p.created_by === user?.id,
+        };
+      });
+    }
+  } catch (e) {
+    console.error('Unexpected error loading polls:', e);
   }
 
   return (
     <ProtectedRoute>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Polls</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-semibold">Polls</h1>
+            <div className="hidden sm:flex items-center gap-2">
+              <Button variant={!(onlyMine) ? 'default' : 'outline'} size="sm" asChild>
+                <Link href="/polls">All</Link>
+              </Button>
+              <Button variant={onlyMine ? 'default' : 'outline'} size="sm" asChild>
+                <Link href="/polls?mine=1">My Polls</Link>
+              </Button>
+            </div>
+          </div>
           <Button asChild>
             <Link href="/polls/new">Create poll</Link>
           </Button>
@@ -97,9 +135,7 @@ export default async function PollsPage() {
                     </Button>
                     <form action={deletePollAction} className="flex-1">
                       <input type="hidden" name="id" value={poll.id} />
-                      <Button variant="destructive" className="w-full" type="submit">
-                        Delete
-                      </Button>
+                      <ConfirmDeleteButton className="w-full" />
                     </form>
                   </>
                 )}

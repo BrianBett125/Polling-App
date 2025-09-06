@@ -13,3 +13,7 @@ group by p.id, p.title, p.created_by, p.created_at;
 
 -- Optional: Comment for clarity
 comment on view public.polls_with_totals is 'Aggregated totals for polls with total_votes precomputed for efficient listing.';
+
+-- Ensure roles can read the view
+grant select on public.polls_with_totals to anon;
+grant select on public.polls_with_totals to authenticated;
