@@ -14,23 +14,53 @@ export default async function PollsPage() {
   // Get current user
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Fetch polls with pre-aggregated total votes from the DB view
-  const { data: polls, error } = await supabase
+  // Fetch polls with pre-aggregated total votes from the DB view (with fallback)
+  const { data: pollsView, error: viewError } = await supabase
     .from('polls_with_totals')
     .select('id, title, created_by, created_at, total_votes')
     .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching polls_with_totals:', error);
-  }
+  let processedPolls: { id: string; title: string; votes: number; created_by: string | null; isOwner: boolean }[] = [];
 
-  const processedPolls = (polls || []).map((poll: any) => ({
-    id: poll.id,
-    title: poll.title,
-    votes: poll.total_votes ?? 0,
-    created_by: poll.created_by as string | null,
-    isOwner: !!user && poll.created_by === user?.id,
-  }));
+  if (!viewError && pollsView) {
+    processedPolls = (pollsView || []).map((poll: any) => ({
+      id: poll.id,
+      title: poll.title,
+      votes: poll.total_votes ?? 0,
+      created_by: poll.created_by as string | null,
+      isOwner: !!user && poll.created_by === user?.id,
+    }));
+  } else {
+    // Fallback: fetch polls and sum votes from poll_options
+    if (viewError) {
+      console.error('Error fetching polls_with_totals:', viewError);
+    }
+    const { data: pollsFallback, error: fallbackError } = await supabase
+      .from('polls')
+      .select(`
+        id, title, created_by, created_at,
+        poll_options ( votes )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (fallbackError) {
+      console.error('Error fetching polls (fallback):', fallbackError);
+    }
+
+    const safe = (pollsFallback || []) as any[];
+    processedPolls = safe.map((p: any) => {
+      const votes = Array.isArray(p.poll_options)
+        ? (p.poll_options as any[]).reduce((sum, po: any) => sum + (po?.votes ?? 0), 0)
+        : 0;
+      return {
+        id: p.id,
+        title: p.title,
+        votes,
+        created_by: p.created_by as string | null,
+        isOwner: !!user && p.created_by === user?.id,
+      };
+    });
+  }
 
   return (
     <ProtectedRoute>
