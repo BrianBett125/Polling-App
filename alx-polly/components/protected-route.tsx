@@ -4,6 +4,11 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/auth-context';
 
+/**
+ * ProtectedRoute
+ * Client-side gate that delays rendering until auth state is known and redirects unauthenticated users to /auth.
+ * Use around pages/sections that require authentication.
+ */
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();

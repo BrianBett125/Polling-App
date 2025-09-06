@@ -7,6 +7,10 @@ import { PollInsert, PollOptionInsert, Database } from './database.types';
 import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
 
 // Function to ensure tables exist
+/**
+ * DEVELOPMENT ONLY: Initializes base tables with a sample row if they are missing.
+ * Not used in production; prefer running the SQL migrations in supabase/migrations.
+ */
 async function ensureTablesExist() {
   const cookieStore = await cookies();
   const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
@@ -60,6 +64,13 @@ async function ensureTablesExist() {
 }
 
 // Function to vote for a poll option
+/**
+ * Registers a vote for a poll option using the `vote_for_option` Postgres function.
+ * Reads the client IP from the x-forwarded-for header for deduplication/auditing and revalidates the poll detail page.
+ * @param optionId - The UUID of the selected poll option.
+ * @param pollId - The UUID of the poll being voted on.
+ * @returns Success flag and the created vote id on success; otherwise a failure with message.
+ */
 export async function voteForOption(optionId: string, pollId: string) {
   const cookieStore = await cookies();
   const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
