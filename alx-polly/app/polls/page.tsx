@@ -96,7 +96,7 @@ export default async function PollsPage({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold">Polls</h1>
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <Button variant={!(onlyMine) ? 'default' : 'outline'} size="sm" asChild>
                 <Link href="/polls">All</Link>
               </Button>

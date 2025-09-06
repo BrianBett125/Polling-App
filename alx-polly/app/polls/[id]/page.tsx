@@ -1,82 +1,48 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ProtectedRoute } from '@/components/protected-route';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/lib/database.types';
-import VoteButton from './vote-button';
+import VoteForm from './vote-button';
 
-// Fetch poll data from Supabase
-async function getPollData(pollId: string) {
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
-  const { data: poll, error: pollError } = await supabase
-    .from('polls')
-    .select('id, title, description, created_by')
-    .eq('id', pollId)
-    .single();
-  
-  if (pollError) {
-    console.error('Error fetching poll:', pollError);
-    return null;
-  }
-  
-  const { data: options, error: optionsError } = await supabase
-    .from('poll_options')
-    .select('id, text, votes')
-    .eq('poll_id', pollId);
-  
-  if (optionsError) {
-    console.error('Error fetching poll options:', optionsError);
-    return null;
-  }
-  
-  // Calculate total votes
-  const totalVotes = options.reduce((sum, option) => sum + option.votes, 0);
-  
+// Simple mock fetcher to simulate server-side data fetching
+type MockOption = { id: string; text: string };
+interface MockPoll {
+  id: string;
+  title: string;
+  options: MockOption[];
+}
+
+async function fetchMockPoll(id: string): Promise<MockPoll> {
+  // Simulate latency so we keep a fetch-like shape that's easy to replace later
+  await new Promise((r) => setTimeout(r, 120));
   return {
-    ...poll,
-    options,
-    totalVotes
+    id,
+    title: "What's your favorite language?",
+    options: [
+      { id: 'ts', text: 'TypeScript' },
+      { id: 'py', text: 'Python' },
+      { id: 'go', text: 'Go' },
+      { id: 'rs', text: 'Rust' },
+    ],
   };
 }
 
-export default async function PollDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const awaitedParams = await params;
-  const pollId = awaitedParams.id;
-  const poll = await getPollData(pollId) || {
-    id: pollId,
-    title: 'Poll not found',
-    description: 'This poll does not exist or has been deleted.',
-    options: [],
-    totalVotes: 0
-  };
+export default async function PollDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
+  const poll = await fetchMockPoll(id);
 
   return (
     <ProtectedRoute>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold">{poll.title}</h1>
-          <p className="text-muted-foreground">{poll.description}</p>
+          <p className="text-muted-foreground">Poll ID: {poll.id}</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Vote</CardTitle>
+            <CardTitle>Choose one option</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {poll.options.map((option: any) => (
-              <div key={option.id} className="flex items-center justify-between p-3 border rounded-md">
-                <div>
-                  <div className="font-medium">{option.text}</div>
-                  <div className="text-sm text-muted-foreground">{option.votes} votes</div>
-                </div>
-                <VoteButton optionId={option.id} pollId={poll.id} />
-              </div>
-            ))}
-
-            <div className="pt-4 border-t">
-              <div className="text-sm text-muted-foreground">Total votes: {poll.totalVotes}</div>
-            </div>
+          <CardContent className="space-y-3">
+            <VoteForm options={poll.options} pollId={poll.id} />
           </CardContent>
         </Card>
       </div>
