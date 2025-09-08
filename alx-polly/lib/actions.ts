@@ -6,6 +6,115 @@ import { headers, cookies } from 'next/headers';
 import { PollInsert, PollOptionInsert, Database } from './database.types';
 import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
 
+// Types and small utilities to standardize behavior across actions
+type ActionError = { message: string };
+
+type PollFormParsed = {
+  title: string;
+  description: string;
+  options: { text: string }[];
+};
+
+/** Create a typed Supabase client for Server Actions */
+async function getServerSupabase() {
+  const cookieStore = await cookies();
+  return createServerActionClient<Database>({ cookies: () => cookieStore });
+}
+
+/** Retrieve the best-effort client IP for auditing/deduplication */
+async function getClientIp() {
+  const headersList = await headers();
+  const forwardedFor = headersList.get('x-forwarded-for');
+  return forwardedFor ? forwardedFor.split(',')[0]!.trim() : '127.0.0.1';
+}
+
+/** Get current user (may be null) */
+async function getCurrentUser(supabase: Awaited<ReturnType<typeof getServerSupabase>>) {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user ?? null;
+}
+
+/** Ensure a user is authenticated, otherwise throw a standardized error */
+async function requireUser(supabase: Awaited<ReturnType<typeof getServerSupabase>>) {
+  const user = await getCurrentUser(supabase);
+  if (!user) throw new Error('Not authenticated');
+  return user;
+}
+
+/** Consistent error factory */
+function actionFailure(message: string): never {
+  throw new Error(message);
+}
+
+/** Extract and validate Poll creation form data */
+function parseAndValidatePollForm(formData: FormData): PollFormParsed {
+  const title = (formData.get('title') as string) ?? '';
+  const description = (formData.get('description') as string) ?? '';
+
+  const optionKeys = Array.from(formData.keys()).filter(k => k.startsWith('option-'));
+  const options = optionKeys
+    .map(k => (formData.get(k) as string) ?? '')
+    .map(text => text.trim())
+    .filter(Boolean)
+    .map(text => ({ text }));
+
+  if (!title || !title.trim()) actionFailure('Title is required');
+  if (options.length < 2) actionFailure('At least two options are required');
+
+  return { title: title.trim(), description, options };
+}
+
+/** Data helpers for polls */
+async function insertPoll(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>, 
+  poll: PollInsert
+) {
+  const { data, error } = await supabase
+    .from('polls')
+    .insert(poll)
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
+async function insertPollOptions(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>, 
+  options: PollOptionInsert[]
+) {
+  const { error } = await supabase
+    .from('poll_options')
+    .insert(options);
+  if (error) throw error;
+}
+
+async function deletePollOwnedBy(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>, 
+  pollId: string,
+  userId: string
+) {
+  const { error } = await supabase
+    .from('polls')
+    .delete()
+    .eq('id', pollId)
+    .eq('created_by', userId);
+  if (error) throw error;
+}
+
+async function updatePollOwnedBy(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>, 
+  pollId: string,
+  userId: string,
+  payload: Pick<PollInsert, 'title' | 'description'>
+) {
+  const { error } = await supabase
+    .from('polls')
+    .update({ title: payload.title, description: payload.description })
+    .eq('id', pollId)
+    .eq('created_by', userId);
+  if (error) throw error;
+}
+
 // Function to ensure tables exist
 /**
  * DEVELOPMENT ONLY: Initializes base tables with a sample row if they are missing.
@@ -72,13 +181,9 @@ async function ensureTablesExist() {
  * @returns Success flag and the created vote id on success; otherwise a failure with message.
  */
 export async function voteForOption(optionId: string, pollId: string) {
-  const cookieStore = await cookies();
-  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
+  const supabase = await getServerSupabase();
   try {
-    // Get client IP address from headers
-    const headersList = await headers();
-    const forwardedFor = headersList.get('x-forwarded-for');
-    const ipAddress = forwardedFor ? forwardedFor.split(',')[0] : '127.0.0.1';
+    const ipAddress = await getClientIp();
     
     // Call the Supabase function to register the vote
     const { data, error } = await supabase.rpc('vote_for_option', {
@@ -92,45 +197,25 @@ export async function voteForOption(optionId: string, pollId: string) {
     // Revalidate the poll page to show updated vote counts
     revalidatePath(`/polls/${pollId}`);
     
-    return { success: true, voteId: data };
+    return { success: true, voteId: data } as const;
   } catch (error: any) {
     console.error('Error voting for option:', error);
     return { 
       success: false, 
-      error: error.message || 'Failed to register vote. Please try again.'
-    };
+      error: error?.message || 'Failed to register vote. Please try again.'
+    } as const;
   }
 }
 
 export async function createPoll(formData: FormData) {
-  const cookieStore = await cookies();
-  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
-  const title = formData.get('title') as string;
-  const description = formData.get('description') as string;
-  
-  // Get all options from form data
-  const optionKeys = Array.from(formData.keys())
-    .filter(key => key.startsWith('option-'));
-  
-  const options = optionKeys
-    .map(key => formData.get(key) as string)
-    .filter(option => option.trim() !== '')
-    .map(text => ({ text }));
-  
-  // Validate form data
-  if (!title || title.trim() === '') {
-    throw new Error('Title is required');
-  }
-  
-  if (options.length < 2) {
-    throw new Error('At least two options are required');
-  }
+  const supabase = await getServerSupabase();
+  const { title, description, options } = parseAndValidatePollForm(formData);
   
   let newPollId: string | null = null;
   try {
     // DO NOT auto-create tables here; assume migrations applied
     // Get current user if authenticated
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentUser(supabase);
     
     // Insert poll into database
     const pollData: PollInsert = {
@@ -139,33 +224,23 @@ export async function createPoll(formData: FormData) {
       created_by: user?.id || null, // Allow null for anonymous users
     };
     
-    const { data: poll, error: pollError } = await supabase
-      .from('polls')
-      .insert(pollData)
-      .select('id')
-      .single();
-    
-    if (pollError) throw pollError;
-    newPollId = poll.id;
+    const pollId = await insertPoll(supabase, pollData);
+    newPollId = pollId;
     
     // Insert options
     const pollOptions: PollOptionInsert[] = options.map(option => ({
-      poll_id: poll.id,
+      poll_id: pollId,
       text: option.text,
       votes: 0,
     }));
     
-    const { error: optionsError } = await supabase
-      .from('poll_options')
-      .insert(pollOptions);
-    
-    if (optionsError) throw optionsError;
+    await insertPollOptions(supabase, pollOptions);
     
     // Revalidate the polls page to show the new poll
     revalidatePath('/polls');
   } catch (error: any) {
     console.error('Error creating poll:', error);
-    throw new Error('Failed to create poll. Please try again.');
+    actionFailure('Failed to create poll. Please try again.');
   }
 
   // Perform redirect OUTSIDE the try/catch so it is not swallowed
@@ -173,57 +248,45 @@ export async function createPoll(formData: FormData) {
     return redirect(`/polls?created=1`);
   }
   
-  throw new Error('Failed to create poll. Please try again.');
+  actionFailure('Failed to create poll. Please try again.');
 }
 
 export async function deletePollAction(formData: FormData) {
-  const cookieStore = await cookies();
-  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
+  const supabase = await getServerSupabase();
   const pollId = formData.get('id') as string;
 
-  if (!pollId) throw new Error('Missing poll id');
+  if (!pollId) actionFailure('Missing poll id');
 
   // Ensure user is authenticated
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  const user = await requireUser(supabase);
 
-  // Restrict deletion to polls owned by the user
-  const { error } = await supabase
-    .from('polls')
-    .delete()
-    .eq('id', pollId)
-    .eq('created_by', user.id);
-
-  if (error) {
+  try {
+    // Restrict deletion to polls owned by the user
+    await deletePollOwnedBy(supabase, pollId, user.id);
+  } catch (error) {
     console.error('Error deleting poll:', error);
-    throw new Error('Failed to delete poll');
+    actionFailure('Failed to delete poll');
   }
 
   revalidatePath('/polls');
 }
 
 export async function updatePollAction(formData: FormData) {
-  const cookieStore = await cookies();
-  const supabase = createServerActionClient<Database>({ cookies: () => cookieStore });
+  const supabase = await getServerSupabase();
   const id = formData.get('id') as string;
-  const title = (formData.get('title') as string) || '';
+  const title = ((formData.get('title') as string) || '').trim();
   const description = (formData.get('description') as string) || '';
 
-  if (!id) throw new Error('Missing poll id');
-  if (!title.trim()) throw new Error('Title is required');
+  if (!id) actionFailure('Missing poll id');
+  if (!title) actionFailure('Title is required');
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  const user = await requireUser(supabase);
 
-  const { error } = await supabase
-    .from('polls')
-    .update({ title, description })
-    .eq('id', id)
-    .eq('created_by', user.id);
-
-  if (error) {
+  try {
+    await updatePollOwnedBy(supabase, id, user.id, { title, description });
+  } catch (error) {
     console.error('Error updating poll:', error);
-    throw new Error('Failed to update poll');
+    actionFailure('Failed to update poll');
   }
 
   revalidatePath('/polls');
