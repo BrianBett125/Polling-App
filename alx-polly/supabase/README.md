@@ -44,56 +44,33 @@ The schema includes RLS policies to control access to the tables:
 - **poll_options**: Everyone can view options, but only poll creators can modify them
 - **votes**: Everyone can view votes, but users can only vote once per poll
 
-## Setup Instructions
+## Setup Instructions (Supabase UI — Step by Step)
 
-### Prerequisites
+> These steps mirror the automated scripts but are helpful if you prefer the Supabase UI.
 
-1. A Supabase project
-2. Environment variables set up in `.env.local`:
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-   ```
+1. Open your Supabase project and go to SQL Editor.
+2. Apply migrations in order (copy/paste and run):
+   - `supabase/migrations/20250905_create_schema.sql`
+   - `supabase/migrations/20250903_create_polls_with_totals_view.sql`
+3. Verify tables and functions:
+   - Table Editor → you should see `polls`, `poll_options`, `votes`.
+   - Database → Functions → you should see `vote_for_option`.
+4. Check RLS policies:
+   - Table Editor → select a table → RLS → confirm policies exist.
+5. Grant access (if needed):
+   - Confirm `GRANT SELECT` on any views used in listing pages (e.g., `polls_with_totals`) for `anon` and `authenticated` roles.
 
-### Applying the Schema
-
-Run the following command to apply the schema to your Supabase project:
-
-```bash
-npm run db:schema
-```
-
-If the automatic application fails, you can manually apply the schema:
-
-1. Go to your Supabase dashboard
-2. Navigate to the SQL Editor
-3. Copy and paste the contents of `migrations/20250905_create_schema.sql`
-4. Execute the SQL
-
-## Usage in the Application
-
-The schema is designed to work with the Next.js application using the Supabase client. The main operations are:
-
-- **Creating polls**: Insert into the `polls` table and then insert options into the `poll_options` table
-- **Voting**: Call the `vote_for_option` function to record a vote
-- **Viewing polls**: Select from the `polls` and `poll_options` tables
-
-Example of voting for an option:
-
-```typescript
+## Example: Voting via RPC (from app)
+```ts
 const { data, error } = await supabase.rpc('vote_for_option', {
   p_option_id: optionId,
   p_poll_id: pollId,
-  p_ip_address: ipAddress
+  p_ip_address: ipAddress,
 });
 ```
 
 ## Troubleshooting
-
-If you encounter issues with the schema:
-
-1. Check that your Supabase URL and keys are correct
-2. Ensure you have the necessary permissions to create tables and functions
-3. Look for error messages in the console output
-4. Try applying the schema manually through the Supabase dashboard
+- Ensure your environment variables are correct and loaded.
+- Confirm RLS policies and grants allow the intended operations.
+- Use the Supabase Logs and SQL Editor to inspect function errors.
+- If automatic scripts fail, re-run them or apply SQL manually via the UI.

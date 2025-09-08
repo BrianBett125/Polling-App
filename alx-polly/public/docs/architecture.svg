@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <style>
+    .title { font: bold 24px sans-serif; }
+    .label { font: 14px sans-serif; }
+    .box { fill: #F5F7FB; stroke: #8BA0B3; stroke-width: 2; rx: 10; }
+    .arrow { stroke: #4B5563; stroke-width: 2; marker-end: url(#arrowhead); }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#4B5563" />
+    </marker>
+  </defs>
+  <text x="30" y="50" class="title">Polling App Architecture (High-Level)</text>
+
+  <!-- Client -->
+  <rect x="40" y="90" width="280" height="120" class="box"/>
+  <text x="60" y="120" class="label">Next.js App Router (RSC + RSC Actions)</text>
+  <text x="60" y="145" class="label">UI: Tailwind + shadcn/ui</text>
+  <text x="60" y="170" class="label">Pages: /polls, /polls/[id], /polls/new</text>
+
+  <!-- Server Actions -->
+  <rect x="360" y="90" width="260" height="120" class="box"/>
+  <text x="380" y="120" class="label">Server Actions</text>
+  <text x="380" y="145" class="label">- createPoll</text>
+  <text x="380" y="170" class="label">- voteForOption</text>
+
+  <!-- Supabase -->
+  <rect x="660" y="90" width="260" height="120" class="box"/>
+  <text x="680" y="120" class="label">Supabase (DB + Auth)</text>
+  <text x="680" y="145" class="label">Tables: polls, poll_options, votes</text>
+  <text x="680" y="170" class="label">RPC: vote_for_option</text>
+
+  <!-- Flows -->
+  <line x1="320" y1="150" x2="360" y2="150" class="arrow"/>
+  <text x="320" y="135" class="label">form submit</text>
+  <line x1="620" y1="150" x2="660" y2="150" class="arrow"/>
+  <text x="575" y="135" class="label">supabase-js</text>
+
+  <!-- Revalidation -->
+  <rect x="360" y="250" width="560" height="120" class="box"/>
+  <text x="380" y="280" class="label">Revalidation</text>
+  <text x="380" y="305" class="label">- revalidatePath('/polls')</text>
+  <text x="380" y="330" class="label">- revalidatePath('/polls/[id]')</text>
+
+  <text x="40" y="420" class="label">Notes: Prefer Server Components for data fetching and Server Actions for mutations. No client-side fetch for core flows.</text>
+</svg>
