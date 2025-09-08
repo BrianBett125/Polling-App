@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "db:migrate": "node scripts/apply-migrations.js",
-    "db:schema": "node scripts/apply-schema.js"
+    "db:schema": "node scripts/apply-schema.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -32,6 +33,8 @@
     "@types/react-dom": "^19",
     "dotenv": "^17.2.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.0.5",
+    "ts-node": "^10.9.2"
   }
 }
