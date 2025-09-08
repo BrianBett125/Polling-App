@@ -199,6 +199,8 @@ export async function voteForOption(optionId: string, pollId: string): Promise<A
     
     // Revalidate the poll page to show updated vote counts
     revalidatePath(`/polls/${pollId}`);
+    // Also revalidate the listing so totals update
+    revalidatePath('/polls');
     
     return { success: true, voteId: data } as const;
   } catch (error: any) {
@@ -248,7 +250,7 @@ export async function createPoll(formData: FormData) {
 
   // Perform redirect OUTSIDE the try/catch so it is not swallowed
   if (newPollId) {
-    return redirect(`/polls?created=1`);
+    return redirect(`/polls/${newPollId}`);
   }
   
   actionFailure('Failed to create poll. Please try again.');
