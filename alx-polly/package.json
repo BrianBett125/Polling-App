@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "sync-readme": "node ./scripts/sync-readme.js",
+    "dev": "node ./scripts/dev-with-readme-sync.js",
+    "build": "node ./scripts/sync-readme.js && next build",
     "start": "next start",
+    "postversion": "node ./scripts/sync-readme.js",
+    "postpublish": "node ./scripts/sync-readme.js",
     "db:migrate": "node scripts/apply-migrations.js",
     "db:schema": "node scripts/apply-schema.js",
     "test": "vitest run"
