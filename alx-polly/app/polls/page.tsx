@@ -11,7 +11,7 @@ import { ConfirmDeleteButton } from '@/components/ConfirmDeleteButton';
 export default async function PollsPage({
   searchParams,
 }: {
-  searchParams?: { mine?: string };
+  searchParams?: Promise<{ mine?: string }>;
 }) {
   const cookieStore = await cookies();
   const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
@@ -21,7 +21,8 @@ export default async function PollsPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const onlyMine = searchParams?.mine === '1' || searchParams?.mine === 'true';
+  const sp = searchParams ? await searchParams : undefined;
+  const onlyMine = sp?.mine === '1' || sp?.mine === 'true';
 
   // Fetch polls with pre-aggregated total votes from the DB view (with fallback)
   let processedPolls: { id: string; title: string; votes: number; created_by: string | null; isOwner: boolean }[] = [];

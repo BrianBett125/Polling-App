@@ -25,8 +25,8 @@ async function fetchMockPoll(id: string): Promise<MockPoll> {
   };
 }
 
-export default async function PollDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function PollDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const poll = await fetchMockPoll(id);
 
   return (

@@ -9,6 +9,9 @@ import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
 // Types and small utilities to standardize behavior across actions
 type ActionError = { message: string };
 
+// Use a shared ActionResult type for success/failure where applicable
+import type { ActionResult } from './types/action-result';
+
 type PollFormParsed = {
   title: string;
   description: string;
@@ -16,26 +19,26 @@ type PollFormParsed = {
 };
 
 /** Create a typed Supabase client for Server Actions */
-async function getServerSupabase() {
+export async function getServerSupabase() {
   const cookieStore = await cookies();
   return createServerActionClient<Database>({ cookies: () => cookieStore });
 }
 
 /** Retrieve the best-effort client IP for auditing/deduplication */
-async function getClientIp() {
+export async function getClientIp() {
   const headersList = await headers();
   const forwardedFor = headersList.get('x-forwarded-for');
   return forwardedFor ? forwardedFor.split(',')[0]!.trim() : '127.0.0.1';
 }
 
 /** Get current user (may be null) */
-async function getCurrentUser(supabase: Awaited<ReturnType<typeof getServerSupabase>>) {
+export async function getCurrentUser(supabase: Awaited<ReturnType<typeof getServerSupabase>>) {
   const { data: { user } } = await supabase.auth.getUser();
   return user ?? null;
 }
 
 /** Ensure a user is authenticated, otherwise throw a standardized error */
-async function requireUser(supabase: Awaited<ReturnType<typeof getServerSupabase>>) {
+export async function requireUser(supabase: Awaited<ReturnType<typeof getServerSupabase>>) {
   const user = await getCurrentUser(supabase);
   if (!user) throw new Error('Not authenticated');
   return user;
@@ -47,7 +50,7 @@ function actionFailure(message: string): never {
 }
 
 /** Extract and validate Poll creation form data */
-function parseAndValidatePollForm(formData: FormData): PollFormParsed {
+export async function parseAndValidatePollForm(formData: FormData): Promise<PollFormParsed> {
   const title = (formData.get('title') as string) ?? '';
   const description = (formData.get('description') as string) ?? '';
 
@@ -180,7 +183,7 @@ async function ensureTablesExist() {
  * @param pollId - The UUID of the poll being voted on.
  * @returns Success flag and the created vote id on success; otherwise a failure with message.
  */
-export async function voteForOption(optionId: string, pollId: string) {
+export async function voteForOption(optionId: string, pollId: string): Promise<ActionResult<{ voteId: string }>> {
   const supabase = await getServerSupabase();
   try {
     const ipAddress = await getClientIp();
@@ -209,7 +212,7 @@ export async function voteForOption(optionId: string, pollId: string) {
 
 export async function createPoll(formData: FormData) {
   const supabase = await getServerSupabase();
-  const { title, description, options } = parseAndValidatePollForm(formData);
+  const { title, description, options } = await parseAndValidatePollForm(formData);
   
   let newPollId: string | null = null;
   try {
