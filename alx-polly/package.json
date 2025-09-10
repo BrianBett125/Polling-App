@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "sync-readme": "node ./scripts/sync-readme.js",
+    "setup-hooks": "node ./scripts/setup-git-hooks.js",
     "dev": "node ./scripts/dev-with-readme-sync.js",
     "build": "node ./scripts/sync-readme.js && next build",
     "start": "next start",
