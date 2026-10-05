@@ -26,7 +26,7 @@ vi.mock('./supabase-server', () => ({
 
 import { voteForOption, createPoll, deletePollAction, updatePollAction } from './actions';
 import { revalidatePath } from 'next/cache';
-import { VOTER_COOKIE } from './voter';
+import { VOTER_COOKIE, signVoterCookie } from './voter';
 
 const POLL = '11111111-1111-4111-8111-111111111111';
 const OPT = '22222222-2222-4222-8222-222222222222';
@@ -37,6 +37,7 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 beforeEach(() => {
   vi.clearAllMocks();
   jar.clear();
+  process.env.VOTER_COOKIE_SECRET = 'unit-test-signing-key';
   adminAvailable = true;
   userClient.auth.getUser.mockResolvedValue({ data: { user: { id: USER } } });
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -44,7 +45,7 @@ beforeEach(() => {
 
 describe('voteForOption', () => {
   it('stores a hashed server-issued browser token and revalidates', async () => {
-    jar.set(VOTER_COOKIE, SECRET);
+    jar.set(VOTER_COOKIE, (await signVoterCookie(SECRET))!);
     adminClient.rpc.mockResolvedValue({ data: 'vote-1', error: null });
 
     const res = await voteForOption(OPT, POLL);
@@ -67,6 +68,14 @@ describe('voteForOption', () => {
     expect(cookieSet).not.toHaveBeenCalled();
   });
 
+  it('rejects a well-formed cookie the server never issued (client-chosen identity)', async () => {
+    jar.set(VOTER_COOKIE, `${SECRET}.${'0'.repeat(64)}`);
+    expect((await voteForOption(OPT, POLL)).success).toBe(false);
+    jar.set(VOTER_COOKIE, SECRET); // bare 64-hex, the old unsigned format
+    expect((await voteForOption(OPT, POLL)).success).toBe(false);
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+  });
+
   it('rejects a malformed cookie instead of trusting it', async () => {
     jar.set(VOTER_COOKIE, 'not-a-valid-secret');
     const res = await voteForOption(OPT, POLL);
@@ -75,7 +84,7 @@ describe('voteForOption', () => {
   });
 
   it('votes anonymously when nobody is signed in or the auth lookup fails', async () => {
-    jar.set(VOTER_COOKIE, SECRET);
+    jar.set(VOTER_COOKIE, (await signVoterCookie(SECRET))!);
     adminClient.rpc.mockResolvedValue({ data: 'v', error: null });
     userClient.auth.getUser.mockRejectedValue(new Error('auth down'));
     const res = await voteForOption(OPT, POLL);
@@ -84,7 +93,7 @@ describe('voteForOption', () => {
   });
 
   it('reports a duplicate vote without claiming success', async () => {
-    jar.set(VOTER_COOKIE, SECRET);
+    jar.set(VOTER_COOKIE, (await signVoterCookie(SECRET))!);
     adminClient.rpc.mockResolvedValue({ data: null, error: { code: 'VT002', message: 'ALREADY_VOTED' } });
     const res = await voteForOption(OPT, POLL);
     expect(res).toEqual({ success: false, error: 'You have already voted on this poll from this browser.', code: 'already_voted' });
@@ -94,13 +103,13 @@ describe('voteForOption', () => {
     ['VT003', 'This poll no longer exists.'],
     ['VT004', 'That option is not part of this poll. Reload the page and try again.'],
   ])('maps database code %s to a friendly message', async (code, message) => {
-    jar.set(VOTER_COOKIE, SECRET);
+    jar.set(VOTER_COOKIE, (await signVoterCookie(SECRET))!);
     adminClient.rpc.mockResolvedValue({ data: null, error: { code, message: 'raw' } });
     expect(await voteForOption(OPT, POLL)).toEqual({ success: false, error: message });
   });
 
   it('hides raw database errors from the visitor', async () => {
-    jar.set(VOTER_COOKIE, SECRET);
+    jar.set(VOTER_COOKIE, (await signVoterCookie(SECRET))!);
     adminClient.rpc.mockResolvedValue({ data: null, error: { code: 'XX000', message: 'relation "votes" is broken at 10.0.0.5' } });
     const res = await voteForOption(OPT, POLL);
     expect(res.success).toBe(false);
@@ -109,7 +118,7 @@ describe('voteForOption', () => {
   });
 
   it('survives a thrown error (network down) with a generic failure', async () => {
-    jar.set(VOTER_COOKIE, SECRET);
+    jar.set(VOTER_COOKIE, (await signVoterCookie(SECRET))!);
     adminClient.rpc.mockRejectedValue(new Error('ECONNRESET'));
     const res = await voteForOption(OPT, POLL);
     expect(res).toMatchObject({ success: false });

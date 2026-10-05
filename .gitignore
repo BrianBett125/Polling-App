@@ -1,0 +1,9 @@
+# Dependencies and build output must never be committed
+node_modules/
+.next/
+.vercel/
+
+# Secrets (alx-polly/.gitignore keeps .env.example tracked)
+.env
+.env.*
+!.env.example

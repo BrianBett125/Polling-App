@@ -15,11 +15,15 @@ Signed-in users create polls and manage their own. Anyone with a poll's link can
 
 One vote per browser per poll, best effort.
 
-- The first time a browser votes, the server sets an `httpOnly` cookie holding a random 256-bit secret. The database stores only its SHA-256 and enforces `UNIQUE (poll_id, voter_token)`.
+- When a browser loads a poll page, middleware sets an `httpOnly` cookie holding a random 256-bit secret plus an HMAC of it under a server-side key. A cookie a client makes up fails the HMAC check and is refused, so identity is always server-issued. The database stores only the secret's SHA-256 and enforces `UNIQUE (poll_id, voter_token)`.
 - Voting goes through the `cast_vote` Postgres function, which only the Supabase `service_role` can execute. Browsers cannot call it, so they cannot choose their own identity. IP addresses and proxy headers are not used.
 - The function also checks that the option belongs to the poll, and a trigger keeps `poll_options.votes` equal to the number of vote rows.
 
-This is not anti-fraud protection. Someone who clears cookies, uses a private window or another browser can vote again. People sharing one browser share one vote.
+In production the cookie is named `__Host-poll_voter` (Secure, no Domain), so a sibling subdomain cannot plant a cookie in a visitor's browser.
+
+Upgrade note: earlier unsigned `poll_voter` cookies are not accepted. Browsers get a new identity on their next poll page load, so people who already voted can vote once more after deploying this version.
+
+This is not anti-fraud protection. Someone who clears cookies, uses a private window or another browser can vote again, and a script that fetches the poll page without cookies gets a fresh identity each time. People sharing one browser share one vote.
 
 ## Tech stack
 
@@ -31,10 +35,10 @@ Requirements: Node.js 18.18 or newer (checked on Node 22), npm, and a Supabase p
 
 ```bash
 cd alx-polly
-npm ci --prefix . --workspaces=false
+npm ci
 ```
 
-The repository root declares an npm workspace, and a plain `npm ci` inside `alx-polly` fails with a lockfile mismatch. The flags above install `alx-polly` on its own and were checked to work.
+The repository root is not an npm workspace; the app installs on its own.
 
 ### Environment variables
 
@@ -45,6 +49,7 @@ Create `alx-polly/.env.local` (see `.env.example`; never commit real values):
 | `NEXT_PUBLIC_SUPABASE_URL` | app (browser and server) | Project URL. Inlined at build time. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | app (browser and server) | Public anon key. Inlined at build time. |
 | `SUPABASE_SERVICE_ROLE_KEY` | app (server only) | Required for voting and for the voted/not-voted check. Never prefix with `NEXT_PUBLIC_`. Without it, voting shows "Voting is not available right now". |
+| `VOTER_COOKIE_SECRET` | app (server only) | Optional. Key used to sign voter cookies. Defaults to `SUPABASE_SERVICE_ROLE_KEY`. Changing the key you use (including rotating the service role key when no separate secret is set) invalidates every voter cookie, so everyone can vote once more. Set a separate `VOTER_COOKIE_SECRET` to avoid that coupling. |
 | `SUPABASE_DB_URL` | `npm run db:migrate` only | Direct Postgres connection string from the Supabase dashboard. Not needed at runtime. |
 | `TEST_DATABASE_URL` | `npm run test:db` only | Admin connection to a throwaway Postgres. Never point it at a real project. |
 
@@ -55,6 +60,7 @@ Migrations are in `supabase/migrations/`, applied in filename order:
 1. `20250905_create_schema.sql` tables, base RLS, indexes.
 2. `20250906_create_polls_with_totals_view.sql` totals view for the poll list.
 3. `20251005000000_browser_vote_identity_and_rls.sql` browser-level voting, stricter RLS, atomic poll creation, option ordering, count integrity.
+4. `20251006000000_poll_options_insert_guard.sql` caps options at 20 and refuses new options once a poll has votes, even for direct API inserts (concurrency-safe: `cast_vote` now takes a shared lock on the poll row).
 
 Apply them with:
 
@@ -111,12 +117,13 @@ The build needs the two `NEXT_PUBLIC_` variables set because pages that use Supa
 2. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` for the environments you use, before the first build (the `NEXT_PUBLIC_` values are baked in at build time; changing them needs a redeploy). Mark the service role key as sensitive.
 3. Apply the migrations to your production Supabase project yourself, with `npm run db:migrate` from a trusted machine, before sending traffic.
 4. Add the deployed URL to Supabase Auth redirect URLs.
-5. Default Vercel framework settings (Next.js) apply. The install step on Vercel has not been tried here; if it trips on the workspace lockfile issue noted above, set the Install Command to `npm ci --prefix . --workspaces=false`.
+5. Default Vercel framework settings (Next.js) apply: install `npm ci`, build `npm run build`.
 
 ## Known limitations
 
 - Browser-level voting is easy to evade (see above) and is not suitable where the result matters.
 - Poll rows are readable by anyone holding the public anon key (Row Level Security allows `select`), because the link is the only gate. Treat poll links as unlisted, not secret.
+- Deleting a Supabase auth user who owns polls or has votes fails with a foreign-key error (no `ON DELETE` rule on `created_by` / `user_id`). Delete or reassign their polls first.
 - Polls created before the ownership rules that have no owner stay readable and votable but cannot be edited or deleted by anyone.
 - The share link and QR code appear once the page has loaded in the browser (they need the page's own origin).
 - A browser gets its voter cookie when it loads a poll page; voting without cookies enabled is refused, not counted. In production mode the cookie is `Secure`, so over plain `http://` on a non-localhost host (for example `next start` on a LAN IP) browsers drop it and voting is refused; use HTTPS or localhost.

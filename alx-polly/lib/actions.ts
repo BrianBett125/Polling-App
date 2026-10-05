@@ -8,7 +8,7 @@ import { getAdminSupabase, getCurrentUser, getServerSupabase } from './supabase-
 import { parsePollEdit, parsePollForm } from './poll-form';
 import { isUuid } from './route-protection';
 import { GENERIC_CREATE_ERROR, GENERIC_VOTE_ERROR, isAlreadyVoted, messageForDbError } from './vote-errors';
-import { VOTER_COOKIE, isVoterSecret, voterToken } from './voter';
+import { VOTER_COOKIE, verifyVoterCookie, voterToken } from './voter';
 
 // Server Actions only: every export in a 'use server' file must be an async action.
 // Helpers live in ./supabase-server, ./poll-form, ./voter and friends.
@@ -18,10 +18,11 @@ const SIGN_IN_REQUIRED: ActionResult = { success: false, error: 'Please sign in 
 /**
  * Records one vote for the visiting browser.
  *
- * Voter identity is a random secret in an httpOnly cookie that only this server
- * issues (middleware, on poll page load); the database stores its SHA-256 and enforces one vote per (poll, token).
- * No client-supplied identity and no IP address is used. This is best effort: a
- * visitor who clears cookies or switches browser can vote again.
+ * Voter identity is a random secret in an httpOnly cookie that only this server can
+ * issue (middleware, on poll page load) because it carries an HMAC under a server key.
+ * A cookie a client makes up fails verification here. The database stores the secret's
+ * SHA-256 and enforces one vote per (poll, token). No IP address is used. Best effort:
+ * a visitor who discards cookies (or switches browser) gets a fresh identity.
  *
  * The cast_vote RPC is executable only by the service role, so the browser cannot
  * call it with a token of its choosing.
@@ -40,8 +41,8 @@ export async function voteForOption(optionId: string, pollId: string): Promise<A
   try {
     // The cookie is issued by middleware when the poll page loads. Never minted here:
     // a request without one would get a fresh identity per call, defeating the limit.
-    const secret = (await cookies()).get(VOTER_COOKIE)?.value;
-    if (!isVoterSecret(secret)) {
+    const secret = await verifyVoterCookie((await cookies()).get(VOTER_COOKIE)?.value);
+    if (!secret) {
       return { success: false, error: messageForDbError({ code: 'VT001' }, GENERIC_VOTE_ERROR) };
     }
 

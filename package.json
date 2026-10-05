@@ -1,15 +1,8 @@
 {
-  "name": "polling-app-monorepo",
+  "name": "polling-app-root",
   "private": true,
-  "workspaces": [
-    "alx-polly"
-  ],
+  "description": "Repository root. The app lives in alx-polly/ and is installed on its own (cd alx-polly && npm ci). This file is not an npm workspace root.",
   "scripts": {
-    "sync-readme": "node ./alx-polly/scripts/sync-readme.js",
-    "postinstall": "npm run sync-readme -w alx-polly || node ./alx-polly/scripts/sync-readme.js"
-  },
-  "dependencies": {
-    "@supabase/auth-helpers-nextjs": "^0.10.0",
-    "@supabase/supabase-js": "^2.57.0"
+    "sync-readme": "node ./alx-polly/scripts/sync-readme.js"
   }
 }

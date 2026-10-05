@@ -15,9 +15,9 @@ Migrations in `migrations/` run in filename order (see the root app README for h
 
 ## Functions
 
-- `cast_vote(p_poll_id, p_option_id, p_voter_token, p_user_id)`: records one vote. `SECURITY DEFINER`, executable only by `service_role`. Raises `VT001` invalid token, `VT002` already voted, `VT003` poll not found, `VT004` option not in poll. `lib/vote-errors.ts` maps these to user messages.
+- `cast_vote(p_poll_id, p_option_id, p_voter_token, p_user_id)`: records one vote (takes `FOR SHARE` on the poll row, so it serialises with option inserts and poll deletes). `SECURITY DEFINER`, executable only by `service_role`. Raises `VT001` invalid token, `VT002` already voted, `VT003` poll not found, `VT004` option not in poll. `lib/vote-errors.ts` maps these to user messages.
 - `create_poll_with_options(p_title, p_description, p_options)`: creates a poll and its options in one transaction as the calling user (`SECURITY INVOKER`, RLS applies). Executable by `authenticated`. Raises `VT005` not signed in, `VT006` bad title, `VT007` bad options (2 to 20, each up to 200 chars).
-- `sync_option_vote_count()` (trigger), `touch_updated_at()` (trigger).
+- `sync_option_vote_count()` (trigger, relative +1/-1 so concurrent votes cannot overwrite each other), `touch_updated_at()` (trigger), `guard_poll_option_insert()` (trigger, `SECURITY DEFINER`): at most 20 options per poll (`VT007`) and none after the poll has votes (`VT008`).
 
 ## Row Level Security
 
@@ -31,4 +31,5 @@ Migrations in `migrations/` run in filename order (see the root app README for h
 
 - `20250905_create_schema.sql` was corrected in place to valid syntax (`UNIQUE NULLS NOT DISTINCT (...)`) and re-runnable policies; its original unique constraints on IP and user are dropped by the later migration.
 - `20250903_create_polls_with_totals_view.sql` was renamed to `20250906_...` because it sorted before the tables it reads from. Contents are unchanged and idempotent (`create or replace view`). If you track migrations with the Supabase CLI and had applied the old name, run `supabase migration repair --status reverted 20250903` and `--status applied 20250906`. `scripts/apply-migrations.js` tracks by file name, so on a project already set up by hand the first run re-applies the first two files (both safe to repeat) and then the new one.
+- `polls.created_by` and `votes.user_id` reference `auth.users` without `ON DELETE`, so deleting an auth user who owns polls or voted fails until those rows are removed or reassigned.
 - Rows in `polls` with `created_by IS NULL` (from before anonymous creation was closed) remain readable but have no owner.
