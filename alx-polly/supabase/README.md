@@ -1,76 +1,34 @@
-# Supabase Database Schema for Polling App
+# Supabase schema
 
-This directory contains the database schema and migrations for the Polling App. The schema defines tables for polls, poll options, and votes, along with Row Level Security (RLS) policies and helper functions.
+Migrations in `migrations/` run in filename order (see the root app README for how to apply them). Tables are in `public`.
 
-## Schema Overview
+## Tables
 
-### Tables
+- **polls**: `id`, `title` (1 to 200 chars), `description` (up to 2000), `created_by` (references `auth.users`), `created_at`, `updated_at` (maintained by trigger).
+- **poll_options**: `id`, `poll_id`, `text` (1 to 200 chars), `position` (display order), `votes` (cached count, maintained by trigger from `votes`), timestamps. `UNIQUE (poll_id, id)` so votes can reference a poll and option together.
+- **votes**: `id`, `poll_id`, `option_id`, `voter_token`, `user_id` (optional, set by the server from the verified session), `ip_address` (legacy, no longer written), `created_at`.
+  - `UNIQUE (poll_id, voter_token)`: one vote per browser per poll.
+  - `voter_token` is the hex SHA-256 of the browser's cookie secret (`^[0-9a-f]{64}$`). Legacy rows have NULL.
+  - Foreign key `(poll_id, option_id) -> poll_options (poll_id, id)`: an option must belong to the poll it is voted on.
+- **polls_with_totals** (view): poll list with `total_votes`.
+- **app_migrations**: bookkeeping written by `scripts/apply-migrations.js`. RLS on, no policies.
 
-1. **polls** - Stores poll information
-   - `id`: UUID (primary key)
-   - `title`: Text (required)
-   - `description`: Text
-   - `created_by`: UUID (references auth.users)
-   - `created_at`: Timestamp
-   - `updated_at`: Timestamp
+## Functions
 
-2. **poll_options** - Stores options for each poll
-   - `id`: UUID (primary key)
-   - `poll_id`: UUID (references polls)
-   - `text`: Text (required)
-   - `votes`: Integer (default 0)
-   - `created_at`: Timestamp
-   - `updated_at`: Timestamp
+- `cast_vote(p_poll_id, p_option_id, p_voter_token, p_user_id)`: records one vote. `SECURITY DEFINER`, executable only by `service_role`. Raises `VT001` invalid token, `VT002` already voted, `VT003` poll not found, `VT004` option not in poll. `lib/vote-errors.ts` maps these to user messages.
+- `create_poll_with_options(p_title, p_description, p_options)`: creates a poll and its options in one transaction as the calling user (`SECURITY INVOKER`, RLS applies). Executable by `authenticated`. Raises `VT005` not signed in, `VT006` bad title, `VT007` bad options (2 to 20, each up to 200 chars).
+- `sync_option_vote_count()` (trigger), `touch_updated_at()` (trigger).
 
-3. **votes** - Tracks individual votes
-   - `id`: UUID (primary key)
-   - `poll_id`: UUID (references polls)
-   - `option_id`: UUID (references poll_options)
-   - `user_id`: UUID (references auth.users)
-   - `ip_address`: Text
-   - `created_at`: Timestamp
-   - Constraints to ensure one vote per user/IP per poll
+## Row Level Security
 
-### Functions
+| Table | anon | authenticated |
+| --- | --- | --- |
+| polls | select | select; insert/update/delete only where `created_by = auth.uid()` |
+| poll_options | select | select; insert only into own polls; no update (counts cannot be edited) |
+| votes | no access | no access (written only by `cast_vote`, read only with the service role) |
 
-1. **increment_vote** - Increments the vote count for a poll option
-2. **vote_for_option** - Records a vote and increments the vote count
+## Notes
 
-### Row Level Security (RLS) Policies
-
-The schema includes RLS policies to control access to the tables:
-
-- **polls**: Everyone can view polls, but only authenticated users can create, update, or delete their own polls
-- **poll_options**: Everyone can view options, but only poll creators can modify them
-- **votes**: Everyone can view votes, but users can only vote once per poll
-
-## Setup Instructions (Supabase UI — Step by Step)
-
-> These steps mirror the automated scripts but are helpful if you prefer the Supabase UI.
-
-1. Open your Supabase project and go to SQL Editor.
-2. Apply migrations in order (copy/paste and run):
-   - `supabase/migrations/20250905_create_schema.sql`
-   - `supabase/migrations/20250903_create_polls_with_totals_view.sql`
-3. Verify tables and functions:
-   - Table Editor → you should see `polls`, `poll_options`, `votes`.
-   - Database → Functions → you should see `vote_for_option`.
-4. Check RLS policies:
-   - Table Editor → select a table → RLS → confirm policies exist.
-5. Grant access (if needed):
-   - Confirm `GRANT SELECT` on any views used in listing pages (e.g., `polls_with_totals`) for `anon` and `authenticated` roles.
-
-## Example: Voting via RPC (from app)
-```ts
-const { data, error } = await supabase.rpc('vote_for_option', {
-  p_option_id: optionId,
-  p_poll_id: pollId,
-  p_ip_address: ipAddress,
-});
-```
-
-## Troubleshooting
-- Ensure your environment variables are correct and loaded.
-- Confirm RLS policies and grants allow the intended operations.
-- Use the Supabase Logs and SQL Editor to inspect function errors.
-- If automatic scripts fail, re-run them or apply SQL manually via the UI.
+- `20250905_create_schema.sql` was corrected in place to valid syntax (`UNIQUE NULLS NOT DISTINCT (...)`) and re-runnable policies; its original unique constraints on IP and user are dropped by the later migration.
+- `20250903_create_polls_with_totals_view.sql` was renamed to `20250906_...` because it sorted before the tables it reads from. Contents are unchanged and idempotent (`create or replace view`). If you track migrations with the Supabase CLI and had applied the old name, run `supabase migration repair --status reverted 20250903` and `--status applied 20250906`. `scripts/apply-migrations.js` tracks by file name, so on a project already set up by hand the first run re-applies the first two files (both safe to repeat) and then the new one.
+- Rows in `polls` with `created_by IS NULL` (from before anonymous creation was closed) remain readable but have no owner.

@@ -11,8 +11,9 @@
     "postversion": "node ./scripts/sync-readme.js",
     "postpublish": "node ./scripts/sync-readme.js",
     "db:migrate": "node scripts/apply-migrations.js",
-    "db:schema": "node scripts/apply-schema.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "test:db": "vitest run --config vitest.db.config.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
@@ -33,12 +34,14 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.2.1",
+    "pg": "^8.23.1",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
     "typescript": "^5",
-    "vitest": "^2.0.5",
-    "ts-node": "^10.9.2"
+    "vitest": "^2.0.5"
   }
 }

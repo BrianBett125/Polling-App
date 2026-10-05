@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import MainNav from "@/components/main-nav";
@@ -18,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "ALX Polly",
-  description: "A simple polling app",
+  description: "Create polls, share them by link or QR code, and see the results.",
 };
 
 export default function RootLayout({
@@ -33,8 +34,8 @@ export default function RootLayout({
       >
         <AuthProvider>
         <header className="border-b">
-          <div className="container mx-auto flex h-14 items-center justify-between px-4">
-            <div className="flex items-center gap-6">
+          <div className="container mx-auto flex min-h-14 flex-wrap items-center justify-between gap-2 px-4 py-2">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
               <span className="font-semibold">ALX Polly</span>
               <MainNav />
             </div>
@@ -44,7 +45,9 @@ export default function RootLayout({
           </div>
         </header>
         <main className="container mx-auto p-4">{children}</main>
-        <PollCreatedToast />
+        <Suspense fallback={null}>
+          <PollCreatedToast />
+        </Suspense>
         </AuthProvider>
       </body>
     </html>

@@ -8,13 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createPoll } from '@/lib/actions';
-import { useRouter } from 'next/navigation';
 
 export default function CreatePollPage() {
   const [options, setOptions] = useState(['', '']);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   const addOption = () => {
     setOptions([...options, '']);
@@ -43,10 +41,14 @@ export default function CreatePollPage() {
         formData.set(`option-${index}`, option);
       });
 
-      await createPoll(formData);
-      // The redirect happens in the server action
-    } catch (err: any) {
-      setError(err.message || 'Failed to create poll');
+      // On success the server action redirects to the new poll, so this only returns on failure.
+      const result = await createPoll(formData);
+      if (result && !result.success) {
+        setError(result.error);
+        setIsSubmitting(false);
+      }
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.');
       setIsSubmitting(false);
     }
   };
@@ -57,7 +59,7 @@ export default function CreatePollPage() {
         <h1 className="text-2xl font-semibold mb-6">Create a new poll</h1>
         
         {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-md mb-4">
+          <div role="alert" className="bg-red-50 text-red-600 p-4 rounded-md mb-4">
             {error}
           </div>
         )}
@@ -74,6 +76,7 @@ export default function CreatePollPage() {
                   id="title" 
                   name="title" 
                   placeholder="Enter poll title" 
+                  maxLength={200}
                   required 
                 />
               </div>
@@ -97,6 +100,7 @@ export default function CreatePollPage() {
                         placeholder={`Option ${index + 1}`} 
                         value={option}
                         onChange={(e) => updateOption(index, e.target.value)}
+                        maxLength={200}
                         required
                       />
                       <Button 
@@ -107,7 +111,7 @@ export default function CreatePollPage() {
                         onClick={() => removeOption(index)}
                         disabled={options.length <= 2}
                       >
-                        <span className="sr-only">Remove</span>
+                        <span className="sr-only">Remove option {index + 1}</span>
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                       </Button>
                     </div>
@@ -119,6 +123,7 @@ export default function CreatePollPage() {
                   size="sm" 
                   className="mt-2"
                   onClick={addOption}
+                  disabled={options.length >= 20}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus mr-1"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
                   Add option

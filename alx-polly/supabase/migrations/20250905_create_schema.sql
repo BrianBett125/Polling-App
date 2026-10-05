@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS public.votes (
     user_id UUID REFERENCES auth.users(id),
     ip_address TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_user_poll_vote UNIQUE (poll_id, user_id) NULLS NOT DISTINCT,
-    CONSTRAINT unique_ip_poll_vote UNIQUE (poll_id, ip_address) NULLS NOT DISTINCT,
+    CONSTRAINT unique_user_poll_vote UNIQUE NULLS NOT DISTINCT (poll_id, user_id),
+    CONSTRAINT unique_ip_poll_vote UNIQUE NULLS NOT DISTINCT (poll_id, ip_address),
     CONSTRAINT user_or_ip_required CHECK (user_id IS NOT NULL OR ip_address IS NOT NULL)
 );
 
@@ -50,19 +50,26 @@ ALTER TABLE public.votes ENABLE ROW LEVEL SECURITY;
 -------------------------------
 
 -- Polls
+DROP POLICY IF EXISTS polls_select ON public.polls;
 CREATE POLICY polls_select ON public.polls FOR SELECT USING (true);
+DROP POLICY IF EXISTS polls_insert ON public.polls;
 CREATE POLICY polls_insert ON public.polls FOR INSERT 
     WITH CHECK (auth.uid() = created_by OR created_by IS NULL);
+DROP POLICY IF EXISTS polls_update ON public.polls;
 CREATE POLICY polls_update ON public.polls FOR UPDATE USING (auth.uid() = created_by);
+DROP POLICY IF EXISTS polls_delete ON public.polls;
 CREATE POLICY polls_delete ON public.polls FOR DELETE USING (auth.uid() = created_by);
 
 -- Poll options
+DROP POLICY IF EXISTS poll_options_select ON public.poll_options;
 CREATE POLICY poll_options_select ON public.poll_options FOR SELECT USING (true);
+DROP POLICY IF EXISTS poll_options_insert ON public.poll_options;
 CREATE POLICY poll_options_insert ON public.poll_options FOR INSERT 
     WITH CHECK (EXISTS (
         SELECT 1 FROM public.polls 
         WHERE id = poll_options.poll_id AND (created_by = auth.uid() OR created_by IS NULL)
     ));
+DROP POLICY IF EXISTS poll_options_update ON public.poll_options;
 CREATE POLICY poll_options_update ON public.poll_options FOR UPDATE 
     USING (EXISTS (
         SELECT 1 FROM public.polls 
@@ -70,7 +77,9 @@ CREATE POLICY poll_options_update ON public.poll_options FOR UPDATE
     ));
 
 -- Votes
+DROP POLICY IF EXISTS votes_select ON public.votes;
 CREATE POLICY votes_select ON public.votes FOR SELECT USING (true);
+DROP POLICY IF EXISTS votes_insert ON public.votes;
 CREATE POLICY votes_insert ON public.votes FOR INSERT
     WITH CHECK (
         (auth.uid() = user_id) OR 

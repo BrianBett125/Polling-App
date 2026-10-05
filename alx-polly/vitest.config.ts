@@ -8,6 +8,6 @@ export default defineConfig({
   },
   css: {
     // Prevent Vitest/Vite from attempting to load PostCSS config during tests
-    postcss: null,
+    postcss: { plugins: [] },
   },
 });

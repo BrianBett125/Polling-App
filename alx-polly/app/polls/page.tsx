@@ -1,150 +1,72 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ProtectedRoute } from '@/components/protected-route';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/lib/database.types';
-import { deletePollAction } from '@/lib/actions';
-import { ConfirmDeleteButton } from '@/components/ConfirmDeleteButton';
+import { DeletePollButton } from '@/components/DeletePollButton';
+import { getComponentSupabase } from '@/lib/supabase-server';
+import { formatVotes } from '@/lib/results';
 
-export default async function PollsPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ mine?: string }>;
-}) {
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+export const dynamic = 'force-dynamic';
 
-  // Get current user
+/** The signed-in creator's own polls. Middleware already blocks signed-out visitors; this re-checks. */
+export default async function PollsPage() {
+  const supabase = await getComponentSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect('/auth?next=/polls');
 
-  const sp = searchParams ? await searchParams : undefined;
-  const onlyMine = sp?.mine === '1' || sp?.mine === 'true';
+  const { data: polls, error } = await supabase
+    .from('polls_with_totals')
+    .select('id, title, total_votes, created_at')
+    .eq('created_by', user.id)
+    .order('created_at', { ascending: false });
 
-  // Fetch polls with pre-aggregated total votes from the DB view (with fallback)
-  let processedPolls: { id: string; title: string; votes: number; created_by: string | null; isOwner: boolean }[] = [];
-
-  try {
-    let viewQuery = supabase
-      .from('polls_with_totals')
-      .select('id, title, created_by, created_at, total_votes')
-      .order('created_at', { ascending: false });
-
-    if (onlyMine && user?.id) {
-      viewQuery = viewQuery.eq('created_by', user.id);
-    }
-
-    const { data: pollsView, error: viewError } = await viewQuery;
-
-    if (!viewError && pollsView) {
-      processedPolls = (pollsView || []).map((poll: any) => ({
-        id: poll.id,
-        title: poll.title,
-        votes: poll.total_votes ?? 0,
-        created_by: poll.created_by as string | null,
-        isOwner: !!user && poll.created_by === user?.id,
-      }));
-    } else {
-      // Fallback: fetch polls and sum votes from poll_options
-      if (viewError) {
-        console.error('Error fetching polls_with_totals:', viewError);
-      }
-
-      let fbQuery = supabase
-        .from('polls')
-        .select(
-          `
-        id, title, created_by, created_at,
-        poll_options ( votes )
-      `,
-        )
-        .order('created_at', { ascending: false });
-
-      if (onlyMine && user?.id) {
-        fbQuery = fbQuery.eq('created_by', user.id);
-      }
-
-      const { data: pollsFallback, error: fallbackError } = await fbQuery;
-
-      if (fallbackError) {
-        console.error('Error fetching polls (fallback):', fallbackError);
-      }
-
-      const safe = (pollsFallback || []) as any[];
-      processedPolls = safe.map((p: any) => {
-        const votes = Array.isArray(p.poll_options)
-          ? (p.poll_options as any[]).reduce((sum, po: any) => sum + (po?.votes ?? 0), 0)
-          : 0;
-        return {
-          id: p.id,
-          title: p.title,
-          votes,
-          created_by: p.created_by as string | null,
-          isOwner: !!user && p.created_by === user?.id,
-        };
-      });
-    }
-  } catch (e) {
-    console.error('Unexpected error loading polls:', e);
-  }
+  if (error) console.error('Error loading polls:', { code: error.code, message: error.message });
 
   return (
-    <ProtectedRoute>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold">Polls</h1>
-            <div className="flex items-center gap-2">
-              <Button variant={!(onlyMine) ? 'default' : 'outline'} size="sm" asChild>
-                <Link href="/polls">All</Link>
-              </Button>
-              <Button variant={onlyMine ? 'default' : 'outline'} size="sm" asChild>
-                <Link href="/polls?mine=1">My Polls</Link>
-              </Button>
-            </div>
-          </div>
-          <Button asChild>
-            <Link href="/polls/new">Create poll</Link>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold">My polls</h1>
+        <Button asChild>
+          <Link href="/polls/new">Create poll</Link>
+        </Button>
+      </div>
+
+      {error ? (
+        <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          We could not load your polls. Reload the page to try again.
+        </div>
+      ) : !polls || polls.length === 0 ? (
+        <div className="py-10 text-center">
+          <p className="text-muted-foreground">You have not created any polls yet.</p>
+          <Button asChild className="mt-4">
+            <Link href="/polls/new">Create your first poll</Link>
           </Button>
         </div>
-
+      ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {processedPolls.length === 0 && (
-            <div className="col-span-full text-center py-10">
-              <p className="text-muted-foreground">No polls found. Create your first poll!</p>
-            </div>
-          )}
-          {processedPolls.map((poll) => (
+          {polls.map((poll) => (
             <Card key={poll.id}>
               <CardHeader>
-                <CardTitle className="line-clamp-2">{poll.title}</CardTitle>
+                <CardTitle className="line-clamp-2 break-words">{poll.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">{poll.votes} votes</p>
+                <p className="text-sm text-muted-foreground">{formatVotes(poll.total_votes ?? 0)}</p>
               </CardContent>
-              <CardFooter className="flex gap-2">
+              <CardFooter className="flex flex-wrap gap-2">
                 <Button variant="outline" asChild className="flex-1">
-                  <Link href={`/polls/${poll.id}`}>View</Link>
+                  <Link href={`/polls/${poll.id}`}>View &amp; share</Link>
                 </Button>
-                {poll.isOwner && (
-                  <>
-                    <Button variant="secondary" asChild className="flex-1">
-                      <Link href={`/polls/${poll.id}/edit`}>Edit</Link>
-                    </Button>
-                    <form action={deletePollAction} className="flex-1">
-                      <input type="hidden" name="id" value={poll.id} />
-                      <ConfirmDeleteButton className="w-full" />
-                    </form>
-                  </>
-                )}
+                <Button variant="secondary" asChild className="flex-1">
+                  <Link href={`/polls/${poll.id}/edit`}>Edit</Link>
+                </Button>
+                <DeletePollButton pollId={poll.id} className="flex-1" />
               </CardFooter>
             </Card>
           ))}
         </div>
-      </div>
-    </ProtectedRoute>
+      )}
+    </div>
   );
 }

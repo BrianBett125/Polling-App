@@ -1,63 +1,90 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ProtectedRoute } from '@/components/protected-route';
-import VoteForm from './vote-button';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/lib/database.types';
-import { voteForOption } from '@/lib/actions';
+import { ResultsList } from '@/components/ResultsList';
+import { ShareCard } from '@/components/ShareCard';
+import { VoteForm } from '@/components/VoteForm';
+import { isUuid } from '@/lib/route-protection';
+import { getComponentSupabase } from '@/lib/supabase-server';
+import { getVoteStatus } from '@/lib/vote-status';
+
+// Public page: anyone with the link can view and vote. Depends on cookies, so never cached.
+export const dynamic = 'force-dynamic';
 
 export default async function PollDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!isUuid(id)) notFound();
 
-  // Fetch poll and options from Supabase
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
-
-  const { data: pollData, error } = await supabase
+  const supabase = await getComponentSupabase();
+  const { data: poll, error } = await supabase
     .from('polls')
-    .select('id, title, poll_options ( id, text, votes )')
+    .select('id, title, description, created_by, poll_options ( id, text, votes, position, created_at )')
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
-  if (error || !pollData) {
+  if (error) {
+    console.error('Error loading poll:', { code: error.code, message: error.message });
     return (
-      <ProtectedRoute>
-        <div className="space-y-4">
-          <h1 className="text-2xl font-semibold">Poll not found</h1>
-        </div>
-      </ProtectedRoute>
+      <div className="max-w-2xl mx-auto space-y-4" role="alert">
+        <h1 className="text-2xl font-semibold">We could not load this poll</h1>
+        <p className="text-muted-foreground">Something went wrong on our side. Reload the page to try again.</p>
+      </div>
     );
   }
+  // Deleted, never existed, or not visible: all look the same to a visitor.
+  if (!poll) notFound();
 
-  const options = (pollData.poll_options ?? []).map((o: any) => ({ id: o.id as string, text: o.text as string, votes: (o.votes ?? 0) as number }));
+  const options = [...(poll.poll_options ?? [])]
+    .sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+    .map((o) => ({ id: o.id, text: o.text, votes: o.votes }));
 
-  const vote = async (formData: FormData) => {
-    'use server';
-    const optionId = formData.get('option') as string | null;
-    if (!optionId) return;
-    const result = await voteForOption(optionId, id);
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to vote');
-    }
-  };
+  const [status, userResult] = await Promise.all([getVoteStatus(id), supabase.auth.getUser()]);
+  const isOwner = !!userResult.data.user && userResult.data.user.id === poll.created_by;
 
   return (
-    <ProtectedRoute>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold">{pollData.title}</h1>
-          <p className="text-muted-foreground">Poll ID: {pollData.id}</p>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-2xl font-semibold break-words min-w-0">{poll.title}</h1>
+          {isOwner && (
+            <Button variant="outline" size="sm" asChild className="shrink-0">
+              <Link href={`/polls/${poll.id}/edit`}>Edit</Link>
+            </Button>
+          )}
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Choose one option</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <VoteForm options={options} action={vote} />
-          </CardContent>
-        </Card>
+        {poll.description && <p className="text-muted-foreground whitespace-pre-line break-words">{poll.description}</p>}
       </div>
-    </ProtectedRoute>
+
+      {options.length === 0 ? (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">This poll has no options to vote on.</CardContent>
+        </Card>
+      ) : (
+        <>
+          {!status.hasVoted && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Choose one option</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <VoteForm pollId={poll.id} options={options.map(({ id, text }) => ({ id, text }))} />
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{status.hasVoted ? 'Thanks for voting. Results so far' : 'Results'}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResultsList options={options} yourOptionId={status.optionId} />
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      <ShareCard path={`/polls/${poll.id}`} title={poll.title} />
+    </div>
   );
 }

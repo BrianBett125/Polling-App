@@ -1,259 +1,243 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createHash } from 'node:crypto';
 
-// Mocks for Next.js modules used in server actions
-vi.mock('next/cache', () => ({
-  revalidatePath: vi.fn(),
-}));
-
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('next/navigation', () => ({
-  redirect: vi.fn((path: string) => ({ redirectedTo: path })),
+  redirect: vi.fn((path: string) => {
+    throw Object.assign(new Error('NEXT_REDIRECT'), { redirectedTo: path });
+  }),
 }));
 
+// Cookie jar shared with the action under test.
+const jar = new Map<string, string>();
+const cookieSet = vi.fn((name: string, value: string, _opts?: unknown) => void jar.set(name, value));
 vi.mock('next/headers', () => ({
-  headers: vi.fn(async () => ({
-    get: (key: string) => (key.toLowerCase() === 'x-forwarded-for' ? '1.2.3.4, 5.6.7.8' : null),
-  })),
-  cookies: vi.fn(async () => ({} as any)),
+  cookies: vi.fn(async () => ({ get: (n: string) => (jar.has(n) ? { name: n, value: jar.get(n)! } : undefined), set: cookieSet })),
 }));
 
-// Create a re-assignable Supabase mock that our factory can return
-const mockSupabase: any = {
-  rpc: vi.fn(),
-  from: vi.fn(),
-  auth: {
-    getUser: vi.fn(),
-  },
-};
-
-vi.mock('@supabase/auth-helpers-nextjs', () => ({
-  createServerActionClient: vi.fn(() => mockSupabase),
+const userClient: any = { rpc: vi.fn(), from: vi.fn(), auth: { getUser: vi.fn() } };
+const adminClient: any = { rpc: vi.fn() };
+let adminAvailable = true;
+vi.mock('./supabase-server', () => ({
+  getServerSupabase: vi.fn(async () => userClient),
+  getAdminSupabase: vi.fn(() => (adminAvailable ? adminClient : null)),
+  getCurrentUser: vi.fn(async (s: any) => (await s.auth.getUser()).data.user ?? null),
 }));
 
-// Import after mocks so the actions use our mocked modules
 import { voteForOption, createPoll, deletePollAction, updatePollAction } from './actions';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { VOTER_COOKIE } from './voter';
 
-function setupCreatePollSuccess(pollId = 'poll-1', optionInsertOk = true) {
-  mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-
-  mockSupabase.from.mockImplementation((table: string) => {
-    if (table === 'polls') {
-      return {
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: { id: pollId }, error: null }),
-      };
-    }
-    if (table === 'poll_options') {
-      return {
-        insert: vi.fn().mockResolvedValue(optionInsertOk ? { error: null } : { error: new Error('options failed') }),
-      } as any;
-    }
-    return {} as any;
-  });
-}
-
-function setupCreatePollInsertError() {
-  mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-  mockSupabase.from.mockImplementation((table: string) => {
-    if (table === 'polls') {
-      return {
-        insert: vi.fn().mockReturnThis(),
-        select: vi.fn().mockReturnThis(),
-        single: vi.fn().mockResolvedValue({ data: null, error: new Error('insert failed') }),
-      };
-    }
-    return {} as any;
-  });
-}
-
-function setupDeleteSuccess() {
-  const chain: any = {
-    delete: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    error: null,
-  };
-  mockSupabase.from.mockReturnValue(chain);
-  mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-  return chain;
-}
-
-function setupDeleteError() {
-  const chain: any = {
-    delete: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    error: new Error('delete failed'),
-  };
-  mockSupabase.from.mockReturnValue(chain);
-  mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-  return chain;
-}
-
-function setupUpdateSuccess() {
-  const chain: any = {
-    update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    error: null,
-  };
-  mockSupabase.from.mockReturnValue(chain);
-  mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-  return chain;
-}
-
-function setupUpdateError() {
-  const chain: any = {
-    update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    error: new Error('update failed'),
-  };
-  mockSupabase.from.mockReturnValue(chain);
-  mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } });
-  return chain;
-}
+const POLL = '11111111-1111-4111-8111-111111111111';
+const OPT = '22222222-2222-4222-8222-222222222222';
+const USER = '33333333-3333-4333-8333-333333333333';
+const SECRET = 'ab'.repeat(32);
+const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  jar.clear();
+  adminAvailable = true;
+  userClient.auth.getUser.mockResolvedValue({ data: { user: { id: USER } } });
+  vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 describe('voteForOption', () => {
-  it('calls RPC and revalidates on success', async () => {
-    mockSupabase.rpc.mockResolvedValue({ data: 'vote-123', error: null });
+  it('stores a hashed server-issued browser token and revalidates', async () => {
+    jar.set(VOTER_COOKIE, SECRET);
+    adminClient.rpc.mockResolvedValue({ data: 'vote-1', error: null });
 
-    const res = await voteForOption('opt-1', 'poll-abc');
+    const res = await voteForOption(OPT, POLL);
 
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('vote_for_option', {
-      p_option_id: 'opt-1',
-      p_poll_id: 'poll-abc',
-      p_ip_address: '1.2.3.4',
+    expect(adminClient.rpc).toHaveBeenCalledWith('cast_vote', {
+      p_poll_id: POLL,
+      p_option_id: OPT,
+      p_voter_token: sha(SECRET),
+      p_user_id: USER,
     });
-    expect(revalidatePath).toHaveBeenCalledWith('/polls/poll-abc');
-    expect(res).toEqual({ success: true, voteId: 'vote-123' });
+    expect(revalidatePath).toHaveBeenCalledWith(`/polls/${POLL}`);
+    expect(res).toEqual({ success: true, voteId: 'vote-1' });
+    expect(adminClient.rpc.mock.calls[0][1].p_voter_token).not.toBe(SECRET);
   });
 
-  it('returns failure on RPC error', async () => {
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: new Error('boom') });
+  it('never mints an identity itself: no cookie means no vote and no database call', async () => {
+    const res = await voteForOption(OPT, POLL);
+    expect(res).toEqual({ success: false, error: 'We could not identify your browser. Enable cookies and try again.' });
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+    expect(cookieSet).not.toHaveBeenCalled();
+  });
 
-    const res = await voteForOption('opt-1', 'poll-abc');
-
+  it('rejects a malformed cookie instead of trusting it', async () => {
+    jar.set(VOTER_COOKIE, 'not-a-valid-secret');
+    const res = await voteForOption(OPT, POLL);
     expect(res.success).toBe(false);
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+  });
+
+  it('votes anonymously when nobody is signed in or the auth lookup fails', async () => {
+    jar.set(VOTER_COOKIE, SECRET);
+    adminClient.rpc.mockResolvedValue({ data: 'v', error: null });
+    userClient.auth.getUser.mockRejectedValue(new Error('auth down'));
+    const res = await voteForOption(OPT, POLL);
+    expect(res.success).toBe(true);
+    expect(adminClient.rpc.mock.calls[0][1].p_user_id).toBeNull();
+  });
+
+  it('reports a duplicate vote without claiming success', async () => {
+    jar.set(VOTER_COOKIE, SECRET);
+    adminClient.rpc.mockResolvedValue({ data: null, error: { code: 'VT002', message: 'ALREADY_VOTED' } });
+    const res = await voteForOption(OPT, POLL);
+    expect(res).toEqual({ success: false, error: 'You have already voted on this poll from this browser.', code: 'already_voted' });
+  });
+
+  it.each([
+    ['VT003', 'This poll no longer exists.'],
+    ['VT004', 'That option is not part of this poll. Reload the page and try again.'],
+  ])('maps database code %s to a friendly message', async (code, message) => {
+    jar.set(VOTER_COOKIE, SECRET);
+    adminClient.rpc.mockResolvedValue({ data: null, error: { code, message: 'raw' } });
+    expect(await voteForOption(OPT, POLL)).toEqual({ success: false, error: message });
+  });
+
+  it('hides raw database errors from the visitor', async () => {
+    jar.set(VOTER_COOKIE, SECRET);
+    adminClient.rpc.mockResolvedValue({ data: null, error: { code: 'XX000', message: 'relation "votes" is broken at 10.0.0.5' } });
+    const res = await voteForOption(OPT, POLL);
+    expect(res.success).toBe(false);
+    expect(JSON.stringify(res)).not.toMatch(/votes|10\.0\.0\.5|XX000/);
     expect(revalidatePath).not.toHaveBeenCalled();
   });
+
+  it('survives a thrown error (network down) with a generic failure', async () => {
+    jar.set(VOTER_COOKIE, SECRET);
+    adminClient.rpc.mockRejectedValue(new Error('ECONNRESET'));
+    const res = await voteForOption(OPT, POLL);
+    expect(res).toMatchObject({ success: false });
+    expect(JSON.stringify(res)).not.toMatch(/ECONNRESET/);
+  });
+
+  it('rejects malformed ids before touching the database', async () => {
+    expect((await voteForOption('x', POLL)).success).toBe(false);
+    expect((await voteForOption(OPT, "' or 1=1 --")).success).toBe(false);
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+  });
+
+  it('fails clearly, not silently, when the service role key is not configured', async () => {
+    adminAvailable = false;
+    const res = await voteForOption(OPT, POLL);
+    expect(res).toEqual({ success: false, error: 'Voting is not available right now. Please try again later.' });
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+  });
 });
+
+function pollForm(extra: Record<string, string> = {}) {
+  const fd = new FormData();
+  fd.set('title', 'Lunch?');
+  fd.set('description', 'where');
+  fd.set('option-0', 'Pizza');
+  fd.set('option-1', 'Tacos');
+  for (const [k, v] of Object.entries(extra)) fd.set(k, v);
+  return fd;
+}
 
 describe('createPoll', () => {
-  it('validates title and options', async () => {
-    const fd1 = new FormData();
-    fd1.set('description', 'desc');
-    await expect(createPoll(fd1 as any)).rejects.toThrow('Title is required');
-
-    const fd2 = new FormData();
-    fd2.set('title', 'T');
-    fd2.set('option-1', 'Only one');
-    await expect(createPoll(fd2 as any)).rejects.toThrow('At least two options are required');
-  });
-
-  it('inserts poll and options, revalidates and redirects', async () => {
-    setupCreatePollSuccess('poll-new');
-
-    const fd = new FormData();
-    fd.set('title', 'My Poll');
-    fd.set('description', 'My Desc');
-    fd.set('option-1', 'A');
-    fd.set('option-2', 'B');
-
-    // Call
-    await createPoll(fd as any);
-
-    // Assert redirect and revalidate
+  it('creates via the atomic RPC and redirects to the poll page', async () => {
+    userClient.rpc.mockResolvedValue({ data: POLL, error: null });
+    await expect(createPoll(pollForm())).rejects.toMatchObject({ redirectedTo: `/polls/${POLL}?created=1` });
+    expect(userClient.rpc).toHaveBeenCalledWith('create_poll_with_options', {
+      p_title: 'Lunch?',
+      p_description: 'where',
+      p_options: ['Pizza', 'Tacos'],
+    });
     expect(revalidatePath).toHaveBeenCalledWith('/polls');
-    expect(redirect).toHaveBeenCalledWith('/polls?created=1');
   });
 
-  it('throws on insert error', async () => {
-    setupCreatePollInsertError();
+  it('refuses signed-out users without calling the database', async () => {
+    userClient.auth.getUser.mockResolvedValue({ data: { user: null } });
+    expect(await createPoll(pollForm())).toMatchObject({ success: false, code: 'not_authenticated' });
+    expect(userClient.rpc).not.toHaveBeenCalled();
+  });
 
-    const fd = new FormData();
-    fd.set('title', 'My Poll');
-    fd.set('option-1', 'A');
-    fd.set('option-2', 'B');
+  it('returns validation errors instead of throwing', async () => {
+    expect(await createPoll(pollForm({ title: '   ' }))).toEqual({ success: false, error: 'Title is required' });
+    expect(userClient.rpc).not.toHaveBeenCalled();
+  });
 
-    await expect(createPoll(fd as any)).rejects.toThrow('Failed to create poll. Please try again.');
-    expect(redirect).not.toHaveBeenCalled();
+  it('returns a generic message when the database fails', async () => {
+    userClient.rpc.mockResolvedValue({ data: null, error: { code: '08006', message: 'connection to 10.0.0.5 failed' } });
+    const res = await createPoll(pollForm());
+    expect(res.success).toBe(false);
+    expect(JSON.stringify(res)).not.toMatch(/10\.0\.0\.5/);
   });
 });
 
+function ownedChain(result: { data: unknown; error: unknown }) {
+  const chain: any = {
+    delete: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    select: vi.fn().mockResolvedValue(result),
+  };
+  userClient.from.mockReturnValue(chain);
+  return chain;
+}
+
 describe('deletePollAction', () => {
-  it('requires auth and poll id', async () => {
-    const fd = new FormData();
-    await expect(deletePollAction(fd as any)).rejects.toThrow('Missing poll id');
-
-    (mockSupabase.auth.getUser as any).mockResolvedValue({ data: { user: null } });
-    const fd2 = new FormData();
-    fd2.set('id', 'poll-1');
-    await expect(deletePollAction(fd2 as any)).rejects.toThrow('Not authenticated');
-  });
-
-  it('deletes the poll and revalidates', async () => {
-    const chain = setupDeleteSuccess();
-
-    const fd = new FormData();
-    fd.set('id', 'poll-1');
-    await deletePollAction(fd as any);
-
-    expect(chain.delete).toHaveBeenCalled();
-    expect(chain.eq).toHaveBeenCalledTimes(2);
+  it('deletes only a poll owned by the verified user', async () => {
+    const chain = ownedChain({ data: [{ id: POLL }], error: null });
+    expect(await deletePollAction(POLL)).toEqual({ success: true });
+    expect(chain.eq).toHaveBeenCalledWith('id', POLL);
+    expect(chain.eq).toHaveBeenCalledWith('created_by', USER);
     expect(revalidatePath).toHaveBeenCalledWith('/polls');
   });
 
-  it('throws on delete error', async () => {
-    setupDeleteError();
-    const fd = new FormData();
-    fd.set('id', 'poll-1');
-    await expect(deletePollAction(fd as any)).rejects.toThrow('Failed to delete poll');
+  it('reports failure when nothing was deleted (not the owner, or already gone)', async () => {
+    ownedChain({ data: [], error: null });
+    expect(await deletePollAction(POLL)).toEqual({ success: false, error: 'Poll not found, or you do not own it.' });
+  });
+
+  it('reports database errors without leaking them', async () => {
+    ownedChain({ data: null, error: { code: 'XX', message: 'secret detail' } });
+    const res = await deletePollAction(POLL);
+    expect(res.success).toBe(false);
+    expect(JSON.stringify(res)).not.toMatch(/secret detail/);
+  });
+
+  it('requires sign-in and a valid id', async () => {
+    userClient.auth.getUser.mockResolvedValue({ data: { user: null } });
+    expect(await deletePollAction(POLL)).toMatchObject({ success: false, code: 'not_authenticated' });
+    expect((await deletePollAction('nope')).success).toBe(false);
+    expect(userClient.from).not.toHaveBeenCalled();
   });
 });
 
 describe('updatePollAction', () => {
-  it('validates id, title and auth', async () => {
-    const fd1 = new FormData();
-    await expect(updatePollAction(fd1 as any)).rejects.toThrow('Missing poll id');
+  const form = (o: Record<string, string> = {}) => {
+    const fd = new FormData();
+    fd.set('id', POLL);
+    fd.set('title', ' New title ');
+    fd.set('description', ' d ');
+    for (const [k, v] of Object.entries(o)) fd.set(k, v);
+    return fd;
+  };
 
-    const fd2 = new FormData();
-    fd2.set('id', 'poll-1');
-    await expect(updatePollAction(fd2 as any)).rejects.toThrow('Title is required');
-
-    (mockSupabase.auth.getUser as any).mockResolvedValue({ data: { user: null } });
-    const fd3 = new FormData();
-    fd3.set('id', 'poll-1');
-    fd3.set('title', 'Hi');
-    await expect(updatePollAction(fd3 as any)).rejects.toThrow('Not authenticated');
+  it('updates trimmed fields for the owner only', async () => {
+    const chain = ownedChain({ data: [{ id: POLL }], error: null });
+    expect(await updatePollAction(form())).toEqual({ success: true });
+    expect(chain.update).toHaveBeenCalledWith({ title: 'New title', description: 'd' });
+    expect(chain.eq).toHaveBeenCalledWith('created_by', USER);
+    expect(revalidatePath).toHaveBeenCalledWith(`/polls/${POLL}`);
   });
 
-  it('updates and revalidates then redirects', async () => {
-    const chain = setupUpdateSuccess();
-
-    const fd = new FormData();
-    fd.set('id', 'poll-1');
-    fd.set('title', 'New title');
-    fd.set('description', 'New desc');
-
-    await updatePollAction(fd as any);
-
-    expect(chain.update).toHaveBeenCalledWith({ title: 'New title', description: 'New desc' });
-    expect(revalidatePath).toHaveBeenCalledWith('/polls');
-    expect(revalidatePath).toHaveBeenCalledWith('/polls/poll-1');
-    expect(redirect).toHaveBeenCalledWith('/polls');
+  it('fails visibly when no row matched', async () => {
+    ownedChain({ data: [], error: null });
+    expect(await updatePollAction(form())).toEqual({ success: false, error: 'Poll not found, or you do not own it.' });
   });
 
-  it('throws on update error', async () => {
-    setupUpdateError();
-
-    const fd = new FormData();
-    fd.set('id', 'poll-1');
-    fd.set('title', 'New title');
-
-    await expect(updatePollAction(fd as any)).rejects.toThrow('Failed to update poll');
+  it('validates title and sign-in before the database', async () => {
+    expect(await updatePollAction(form({ title: '  ' }))).toEqual({ success: false, error: 'Title is required' });
+    userClient.auth.getUser.mockResolvedValue({ data: { user: null } });
+    expect(await updatePollAction(form())).toMatchObject({ code: 'not_authenticated' });
+    expect(userClient.from).not.toHaveBeenCalled();
   });
 });

@@ -31,7 +31,7 @@ export default function PollCreatedToast() {
       >
         <Toast.Title className="font-semibold">Poll created</Toast.Title>
         <Toast.Description className="text-sm/6 opacity-90">
-          Your poll is ready to share and collect votes.
+          Share the link or QR code below to start collecting votes.
         </Toast.Description>
       </Toast.Root>
       <Toast.Viewport className="fixed bottom-4 right-4 z-50 outline-none" />

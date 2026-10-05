@@ -1,61 +1,49 @@
-import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Database } from '@/lib/database.types';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { notFound, redirect } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EditPollForm from '@/components/EditPollForm';
-import { updatePollAction } from '@/lib/actions';
-import { ProtectedRoute } from '@/components/protected-route';
+import { isUuid } from '@/lib/route-protection';
+import { getComponentSupabase } from '@/lib/supabase-server';
 
-export default async function EditPollPage({ params }: { params: { id: string } }) {
-  const awaitedParams = await params;
-  const pollId = awaitedParams.id;
+export const dynamic = 'force-dynamic';
 
-  const cookieStore = await cookies();
-  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore });
+export default async function EditPollPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!isUuid(id)) notFound();
 
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect('/auth');
-  }
+  const supabase = await getComponentSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect(`/auth?next=/polls/${id}/edit`);
 
-  // Fetch poll
   const { data: poll, error } = await supabase
     .from('polls')
     .select('id, title, description, created_by')
-    .eq('id', pollId)
-    .single();
+    .eq('id', id)
+    .maybeSingle();
 
-  if (error || !poll) {
-    redirect('/polls');
+  if (error) {
+    console.error('Error loading poll for edit:', { code: error.code, message: error.message });
+    return (
+      <div role="alert" className="max-w-2xl mx-auto rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        We could not load this poll. Reload the page to try again.
+      </div>
+    );
   }
-
-  // Only owner can edit
-  if (poll.created_by !== user.id) {
-    redirect('/polls');
-  }
+  if (!poll) notFound();
+  // Only the owner can edit. RLS enforces it again on write.
+  if (poll.created_by !== user.id) redirect(`/polls/${id}`);
 
   return (
-    <ProtectedRoute>
-      <div className="max-w-2xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle>Edit poll</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EditPollForm poll={poll} />
-          </CardContent>
-          <CardFooter className="flex gap-2 justify-end">
-            <Button variant="outline" asChild>
-              <Link href="/polls">Cancel</Link>
-            </Button>
-            <Button type="submit" form="edit-poll-form">Save</Button>
-          </CardFooter>
-        </Card>
-      </div>
-    </ProtectedRoute>
+    <div className="max-w-2xl mx-auto">
+      <Card>
+        <CardHeader>
+          <CardTitle>Edit poll</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EditPollForm poll={poll} />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
