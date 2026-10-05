@@ -118,6 +118,7 @@ The build needs the two `NEXT_PUBLIC_` variables set because pages that use Supa
 3. Apply the migrations to your production Supabase project yourself, with `npm run db:migrate` from a trusted machine, before sending traffic.
 4. Add the deployed URL to Supabase Auth redirect URLs.
 5. Default Vercel framework settings (Next.js) apply: install `npm ci`, build `npm run build`.
+6. If a deploy fails, open the failed deployment's build log. A build that stops with `[check-env] ERROR` is missing `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`; add them under Settings > Environment Variables and redeploy (they cannot be added after the fact to an existing build). `No Next.js version detected` means the Root Directory is not `alx-polly`.
 
 ## Known limitations
 

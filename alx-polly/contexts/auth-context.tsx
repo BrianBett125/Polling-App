@@ -1,11 +1,12 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { Database } from '@/lib/database.types';
 
 // High-level: Client-side auth context backed by Supabase; hydrates session and subscribes to auth state changes.
+const NOT_CONFIGURED = new Error('This site is not configured yet: the Supabase environment variables are missing.');
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
@@ -32,9 +33,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClientComponentClient<Database>();
+  // Created lazily and guarded: with the NEXT_PUBLIC_SUPABASE_* variables missing the client
+  // constructor throws, which would crash every page (and the build) instead of showing a clear message.
+  const supabase = useMemo(() => {
+    try {
+      return createClientComponentClient<Database>();
+    } catch {
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
     // Get session from storage
     const getSession = async () => {
       setIsLoading(true);
@@ -70,18 +83,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   /** Sign in with email/password via Supabase. Returns an error field if the operation fails. */
   const signIn = async (email: string, password: string) => {
+    if (!supabase) return { error: NOT_CONFIGURED };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
 
   /** Sign up with email/password. Returns data (may include user) and error from Supabase. */
   const signUp = async (email: string, password: string) => {
+    if (!supabase) return { data: null, error: NOT_CONFIGURED };
     const { data, error } = await supabase.auth.signUp({ email, password });
     return { data, error };
   };
 
   /** Clears the current session and signs the user out. */
   const signOut = async () => {
+    if (!supabase) return;
     await supabase.auth.signOut();
   };
 
