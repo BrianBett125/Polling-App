@@ -1,6 +1,15 @@
 import { createHash } from 'node:crypto';
 
-export { VOTER_COOKIE, VOTER_COOKIE_MAX_AGE, isVoterSecret, newVoterSecret, voterCookieOptions } from './voter-cookie';
+export {
+  VOTER_COOKIE,
+  VOTER_COOKIE_MAX_AGE,
+  isVoterSecret,
+  newVoterSecret,
+  signVoterCookie,
+  verifyVoterCookie,
+  voterCookieOptions,
+  voterCookieToIssue,
+} from './voter-cookie';
 
 /**
  * What the database stores: the hex SHA-256 of the cookie secret, so a database

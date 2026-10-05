@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GENERIC_VOTE_ERROR, isAlreadyVoted, messageForDbError } from './vote-errors';
 
 describe('vote error mapping', () => {
-  it.each(['VT001', 'VT002', 'VT003', 'VT004', 'VT005', 'VT006', 'VT007'])('has a message for %s', (code) => {
+  it.each(['VT001', 'VT002', 'VT003', 'VT004', 'VT005', 'VT006', 'VT007', 'VT008'])('has a message for %s', (code) => {
     expect(messageForDbError({ code }, 'fallback')).not.toBe('fallback');
   });
 

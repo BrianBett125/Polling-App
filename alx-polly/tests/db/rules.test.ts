@@ -194,11 +194,12 @@ describe('RLS: polls and options', () => {
   });
 
   it('does not let an owner insert an option with preset votes, or negative votes', async () => {
+    const fresh = await newPoll(A);
     await expect(
-      db.as('authenticated', A, `insert into poll_options(poll_id,text,votes) values ($1,'x',999)`, [pollId]),
+      db.as('authenticated', A, `insert into poll_options(poll_id,text,votes) values ($1,'x',999)`, [fresh.id]),
     ).rejects.toMatchObject({ code: '42501' });
     await expect(
-      db.as('authenticated', A, `insert into poll_options(poll_id,text,votes) values ($1,'x',-1)`, [pollId]),
+      db.as('authenticated', A, `insert into poll_options(poll_id,text,votes) values ($1,'x',-1)`, [fresh.id]),
     ).rejects.toBeTruthy();
     const p = await newPoll(A);
     await expect(
@@ -207,10 +208,68 @@ describe('RLS: polls and options', () => {
     expect((await db.as('anon', null, 'select total_votes from polls_with_totals where id=$1', [p.id])).rows[0].total_votes).toBe(0);
   });
 
+  it('lets an owner add options to a poll with no votes, up to 20, and never after voting starts', async () => {
+    const p = await newPoll(A);
+    await db.as('authenticated', A, `insert into poll_options(poll_id,text,position) values ($1,'third',2)`, [p.id]);
+    for (let i = 3; i < 20; i++) {
+      await db.as('authenticated', A, `insert into poll_options(poll_id,text,position) values ($1,$2,$3)`, [p.id, `o${i}`, i]);
+    }
+    await expect(
+      db.as('authenticated', A, `insert into poll_options(poll_id,text,position) values ($1,'21st',20)`, [p.id]),
+    ).rejects.toMatchObject({ code: 'VT007' });
+
+    const q = await newPoll(A);
+    await vote(q.id, q.opts[0], token('b'));
+    await expect(
+      db.as('authenticated', A, `insert into poll_options(poll_id,text,position) values ($1,'late',2)`, [q.id]),
+    ).rejects.toMatchObject({ code: 'VT008' });
+    expect(await counts(q.id)).toEqual([1, 0]);
+  });
+
+  it('serialises option inserts and votes: whichever commits second sees the other', async () => {
+    // Vote in flight first: the option insert must wait, then be refused.
+    const p = await newPoll(A);
+    const c = await db.pool.connect();
+    try {
+      await c.query('BEGIN');
+      await c.query('select public.cast_vote($1,$2,$3,null)', [p.id, p.opts[0], token('c')]);
+      const ins = db.as('authenticated', A, `insert into poll_options(poll_id,text,position) values ($1,'late',2)`, [p.id]);
+      const settled = ins.then(() => 'inserted', (e) => e.code);
+      await new Promise((r) => setTimeout(r, 300));
+      await c.query('COMMIT');
+      expect(await settled).toBe('VT008');
+    } finally {
+      c.release();
+    }
+
+    // Option insert in flight first: the vote must wait, then succeed, and the poll stays consistent.
+    const q = await newPoll(A);
+    const c2 = await db.pool.connect();
+    try {
+      await c2.query('BEGIN');
+      await c2.query(`select set_config('request.jwt.claim.sub', $1, true)`, [A]);
+      await c2.query('SET LOCAL ROLE authenticated');
+      await c2.query(`insert into poll_options(poll_id,text,position) values ($1,'extra',2)`, [q.id]);
+      const v = vote(q.id, q.opts[0], token('d')).then(() => 'voted', (e) => e.code);
+      await new Promise((r) => setTimeout(r, 300));
+      await c2.query('COMMIT');
+      expect(await v).toBe('voted');
+    } finally {
+      c2.release();
+    }
+    expect(await counts(q.id)).toEqual([1, 0, 0]);
+  });
+
   it('does not let a user add options to someone else\'s poll', async () => {
+    const theirs = await newPoll(A);
+    await expect(
+      db.as('authenticated', B, `insert into poll_options(poll_id,text) values ($1,'sneaky')`, [theirs.id]),
+    ).rejects.toMatchObject({ code: '42501' });
+    // On a poll that already has votes the guard refuses first; either way nothing is inserted.
     await expect(
       db.as('authenticated', B, `insert into poll_options(poll_id,text) values ($1,'sneaky')`, [pollId]),
-    ).rejects.toMatchObject({ code: '42501' });
+    ).rejects.toBeTruthy();
+    expect((await db.admin(`select count(*)::int c from poll_options where text='sneaky'`)).rows[0].c).toBe(0);
   });
 
   it('a poll delete racing an in-flight vote leaves no orphan votes or options', async () => {

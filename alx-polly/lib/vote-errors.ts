@@ -11,6 +11,7 @@ const MESSAGES: Record<string, string> = {
   VT005: 'Please sign in to create a poll.',
   VT006: 'Poll titles must be between 1 and 200 characters.',
   VT007: 'A poll needs between 2 and 20 options, each up to 200 characters.',
+  VT008: 'Options cannot be added after voting has started.',
 };
 
 export const GENERIC_VOTE_ERROR = 'Something went wrong while recording your vote. Please try again.';
