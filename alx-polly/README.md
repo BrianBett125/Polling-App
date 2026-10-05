@@ -31,10 +31,10 @@ Requirements: Node.js 18.18 or newer (checked on Node 22), npm, and a Supabase p
 
 ```bash
 cd alx-polly
-npm ci --prefix . --workspaces=false
+npm ci
 ```
 
-The repository root declares an npm workspace, and a plain `npm ci` inside `alx-polly` fails with a lockfile mismatch. The flags above install `alx-polly` on its own and were checked to work.
+The repository root is not an npm workspace; the app installs on its own.
 
 ### Environment variables
 
@@ -111,7 +111,7 @@ The build needs the two `NEXT_PUBLIC_` variables set because pages that use Supa
 2. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` for the environments you use, before the first build (the `NEXT_PUBLIC_` values are baked in at build time; changing them needs a redeploy). Mark the service role key as sensitive.
 3. Apply the migrations to your production Supabase project yourself, with `npm run db:migrate` from a trusted machine, before sending traffic.
 4. Add the deployed URL to Supabase Auth redirect URLs.
-5. Default Vercel framework settings (Next.js) apply. The install step on Vercel has not been tried here; if it trips on the workspace lockfile issue noted above, set the Install Command to `npm ci --prefix . --workspaces=false`.
+5. Default Vercel framework settings (Next.js) apply: install `npm ci`, build `npm run build`.
 
 ## Known limitations
 
