@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { safeNextPath } from '@/lib/route-protection';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const router = useRouter();
@@ -20,19 +22,27 @@ export default function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
+    const next = safeNextPath(new URLSearchParams(window.location.search).get('next'));
 
     try {
       if (isLogin) {
         const { error } = await signIn(email, password);
         if (error) throw error;
-        router.push('/polls');
+        router.push(next);
+        router.refresh();
       } else {
-        const { error } = await signUp(email, password);
+        const { data, error } = await signUp(email, password);
         if (error) throw error;
-        // Show success message for registration
-        setError('Registration successful! Please check your email for verification.');
-        setIsLogin(true);
+        if (data?.session) {
+          // Email confirmation is off for this Supabase project: the user is already signed in.
+          router.push(next);
+          router.refresh();
+        } else {
+          setNotice('Account created. Check your email to confirm your address, then sign in.');
+          setIsLogin(true);
+        }
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred');
@@ -55,8 +65,13 @@ export default function AuthPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
-              <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              <div role="alert" className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
                 {error}
+              </div>
+            )}
+            {notice && (
+              <div role="status" className="bg-green-50 text-green-800 p-3 rounded-md text-sm">
+                {notice}
               </div>
             )}
             <div className="space-y-2">
@@ -64,6 +79,7 @@ export default function AuthPage() {
               <Input 
                 id="email" 
                 type="email" 
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required 
@@ -74,6 +90,8 @@ export default function AuthPage() {
               <Input 
                 id="password" 
                 type="password" 
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
+                minLength={isLogin ? undefined : 6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required 

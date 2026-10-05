@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 export default function MainNav() {
   const items = [
     { href: "/", label: "Home" },
-    { href: "/polls", label: "Polls" },
-    { href: "/polls/new", label: "Create Poll" },
+    { href: "/polls", label: "My polls" },
+    { href: "/polls/new", label: "Create poll" },
   ];
 
   return (

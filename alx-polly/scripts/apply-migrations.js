@@ -1,140 +1,96 @@
-// Script to apply database migrations
+// Applies supabase/migrations/*.sql in filename order against a Postgres database.
+//
+//   SUPABASE_DB_URL=postgresql://... npm run db:migrate            apply pending
+//   SUPABASE_DB_URL=postgresql://... npm run db:migrate -- --dry-run   list pending only
+//
+// Needs the direct Postgres connection string (Supabase dashboard > Connect), not
+// the REST URL or an API key. Each file runs in its own transaction and is
+// recorded in public.app_migrations, so re-running only applies new files.
+// SQL is never executed through an HTTP-callable function.
 try {
   require('dotenv').config({ path: '.env.local' });
-} catch (error) {
-  console.log('Dotenv not available, using environment variables directly');
+} catch {
+  // dotenv is a dev dependency; plain environment variables work too.
 }
 const fs = require('fs');
 const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
+const { Client } = require('pg');
 
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const DEFAULT_DIR = path.join(__dirname, '..', 'supabase', 'migrations');
+const LOCK_KEY = 727001; // arbitrary constant: serializes concurrent runners
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Error: Supabase URL and key are required.');
-  console.error('Make sure NEXT_PUBLIC_SUPABASE_URL and either SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY are set in .env.local');
-  process.exit(1);
+/** Migration file names in the order they must run. */
+function listMigrations(dir = DEFAULT_DIR) {
+  return fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Path to migrations directory
-const migrationsDir = path.join(__dirname, '..', 'supabase', 'migrations');
-
-// Function to apply a migration file
-async function applyMigration(filePath) {
+async function applyMigrations({ connectionString, dir = DEFAULT_DIR, dryRun = false, log = console.log }) {
+  const client = new Client({ connectionString });
+  await client.connect();
+  const applied = [];
   try {
-    console.log(`Applying migration: ${path.basename(filePath)}`);
-    const sql = fs.readFileSync(filePath, 'utf8');
-    
-    // Execute the SQL using Supabase's RPC call
-    const { error } = await supabase.rpc('exec_sql', { sql });
-    
-    if (error) {
-      console.error(`Error applying migration ${path.basename(filePath)}:`, error);
-      return false;
-    }
-    
-    console.log(`Successfully applied migration: ${path.basename(filePath)}`);
-    return true;
-  } catch (error) {
-    console.error(`Error reading or applying migration ${path.basename(filePath)}:`, error);
-    return false;
-  }
-}
+    await client.query('SELECT pg_advisory_lock($1)', [LOCK_KEY]);
+    const exists = (await client.query(`SELECT to_regclass('public.app_migrations') AS t`)).rows[0].t;
+    if (!exists && !dryRun) await client.query(`
+      CREATE TABLE IF NOT EXISTS public.app_migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      ALTER TABLE public.app_migrations ENABLE ROW LEVEL SECURITY;
+      REVOKE ALL ON public.app_migrations FROM PUBLIC;
+      DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+          EXECUTE 'REVOKE ALL ON public.app_migrations FROM anon, authenticated';
+        END IF;
+      END $$;
+    `);
+    const done = exists || !dryRun
+      ? new Set((await client.query('SELECT name FROM public.app_migrations')).rows.map((r) => r.name))
+      : new Set();
+    const pending = listMigrations(dir).filter((f) => !done.has(f));
 
-// Function to apply all migrations
-async function applyAllMigrations() {
-  try {
-    // Check if migrations directory exists
-    if (!fs.existsSync(migrationsDir)) {
-      console.error(`Migrations directory not found: ${migrationsDir}`);
-      return;
+    if (pending.length === 0) {
+      log('No pending migrations.');
+      return applied;
     }
-    
-    // Get all SQL files in the migrations directory
-    const files = fs.readdirSync(migrationsDir)
-      .filter(file => file.endsWith('.sql'))
-      .sort(); // Sort to ensure migrations are applied in order
-    
-    if (files.length === 0) {
-      console.log('No migration files found.');
-      return;
-    }
-    
-    console.log(`Found ${files.length} migration files.`);
-    
-    // Create a function to execute raw SQL if RPC method is not available
-    const createExecSqlFunction = async () => {
-      const createFunctionSql = `
-        CREATE OR REPLACE FUNCTION exec_sql(sql text) RETURNS void AS $$
-        BEGIN
-          EXECUTE sql;
-        END;
-        $$ LANGUAGE plpgsql SECURITY DEFINER;
-      `;
-      
-      const { error } = await supabase.from('_rpc').select('*').limit(1);
-      
-      if (error) {
-        // Try to create the function directly
-        const { error: execError } = await supabase.rpc('exec_sql', { 
-          sql: createFunctionSql 
-        });
-        
-        if (execError) {
-          console.log('Creating exec_sql function...');
-          // If RPC fails, we need to use raw REST API to execute SQL
-          const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseKey}`,
-              'apikey': supabaseKey
-            },
-            body: JSON.stringify({
-              query: createFunctionSql
-            })
-          });
-          
-          if (!response.ok) {
-            console.error('Failed to create exec_sql function:', await response.text());
-            return false;
-          }
-        }
+    for (const file of pending) {
+      if (dryRun) {
+        log(`pending: ${file}`);
+        continue;
       }
-      
-      return true;
-    };
-    
-    // Create the exec_sql function if needed
-    const functionCreated = await createExecSqlFunction();
-    if (!functionCreated) {
-      console.error('Failed to create exec_sql function. Cannot proceed with migrations.');
-      return;
+      const sql = fs.readFileSync(path.join(dir, file), 'utf8');
+      log(`Applying ${file}`);
+      try {
+        await client.query('BEGIN');
+        await client.query(sql);
+        await client.query('INSERT INTO public.app_migrations (name) VALUES ($1)', [file]);
+        await client.query('COMMIT');
+        applied.push(file);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        err.message = `Migration ${file} failed and was rolled back: ${err.message}`;
+        throw err;
+      }
     }
-    
-    // Apply each migration file
-    let successCount = 0;
-    for (const file of files) {
-      const filePath = path.join(migrationsDir, file);
-      const success = await applyMigration(filePath);
-      if (success) successCount++;
-    }
-    
-    console.log(`Applied ${successCount} out of ${files.length} migrations.`);
-  } catch (error) {
-    console.error('Error applying migrations:', error);
+    return applied;
+  } finally {
+    await client.query('SELECT pg_advisory_unlock($1)', [LOCK_KEY]).catch(() => {});
+    await client.end();
   }
 }
 
-// Run the migration process
-applyAllMigrations().then(() => {
-  console.log('Migration process completed.');
-  process.exit(0);
-}).catch(error => {
-  console.error('Migration process failed:', error);
-  process.exit(1);
-});
+module.exports = { applyMigrations, listMigrations };
+
+if (require.main === module) {
+  const connectionString = process.env.SUPABASE_DB_URL;
+  if (!connectionString) {
+    console.error('SUPABASE_DB_URL is required (direct Postgres connection string).');
+    process.exit(1);
+  }
+  applyMigrations({ connectionString, dryRun: process.argv.includes('--dry-run') })
+    .then((applied) => console.log(`Done. Applied ${applied.length} migration(s).`))
+    .catch((err) => {
+      console.error(err.message);
+      process.exit(1);
+    });
+}
