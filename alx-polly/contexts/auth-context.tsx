@@ -19,8 +19,12 @@ type AuthContextType = {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string) => Promise<{ error: any, data: any }>;
+  signIn: (email: string, password: string, captchaToken?: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, captchaToken?: string) => Promise<{ error: any, data: any }>;
+  /** Sends a password reset email whose link returns to /auth/callback?next=/auth/reset. */
+  resetPassword: (email: string, captchaToken?: string) => Promise<{ error: any }>;
+  /** Sets a new password for the signed-in (or recovery-session) user. */
+  updatePassword: (password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 };
 
@@ -82,17 +86,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   /** Sign in with email/password via Supabase. Returns an error field if the operation fails. */
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string, captchaToken?: string) => {
     if (!supabase) return { error: NOT_CONFIGURED };
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      ...(captchaToken ? { options: { captchaToken } } : {}),
+    });
     return { error };
   };
 
   /** Sign up with email/password. Returns data (may include user) and error from Supabase. */
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, captchaToken?: string) => {
     if (!supabase) return { data: null, error: NOT_CONFIGURED };
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      ...(captchaToken ? { options: { captchaToken } } : {}),
+    });
     return { data, error };
+  };
+
+  const resetPassword = async (email: string, captchaToken?: string) => {
+    if (!supabase) return { error: NOT_CONFIGURED };
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset`,
+      ...(captchaToken ? { captchaToken } : {}),
+    });
+    return { error };
+  };
+
+  const updatePassword = async (password: string) => {
+    if (!supabase) return { error: NOT_CONFIGURED };
+    const { error } = await supabase.auth.updateUser({ password });
+    return { error };
   };
 
   /** Clears the current session and signs the user out. */
@@ -107,6 +134,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     signIn,
     signUp,
+    resetPassword,
+    updatePassword,
     signOut,
   };
 

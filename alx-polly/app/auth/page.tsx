@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { safeNextPath } from '@/lib/route-protection';
 import { useAuth } from '@/contexts/auth-context';
+import { friendlyAuthError } from '@/lib/auth-errors';
+import { Turnstile, captchaEnabled } from '@/components/Turnstile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,24 +19,43 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const { signIn, signUp } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('error') === 'callback') {
+      setError('That link did not work or has expired. Please sign in, or request a new link.');
+    }
+  }, []);
+
+  // Tokens are single use: after any attempt that did not navigate away, ask for a fresh challenge.
+  const freshChallenge = () => {
+    setCaptchaToken(null);
+    setCaptchaReset((n) => n + 1);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setNotice(null);
+    if (captchaEnabled && !captchaToken) {
+      setError('Please complete the human check before continuing.');
+      return;
+    }
     setLoading(true);
     const next = safeNextPath(new URLSearchParams(window.location.search).get('next'));
 
     try {
       if (isLogin) {
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(email, password, captchaToken ?? undefined);
         if (error) throw error;
         router.push(next);
         router.refresh();
       } else {
-        const { data, error } = await signUp(email, password);
+        const { data, error } = await signUp(email, password, captchaToken ?? undefined);
         if (error) throw error;
         if (data?.session) {
           // Email confirmation is off for this Supabase project: the user is already signed in.
@@ -42,10 +64,12 @@ export default function AuthPage() {
         } else {
           setNotice('Account created. Check your email to confirm your address, then sign in.');
           setIsLogin(true);
+          freshChallenge();
         }
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred');
+      setError(friendlyAuthError(err));
+      freshChallenge();
     } finally {
       setLoading(false);
     }
@@ -96,17 +120,29 @@ export default function AuthPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required 
               />
+              {isLogin && (
+                <div className="text-right">
+                  <Link href="/auth/forgot" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
             </div>
+            <Turnstile onToken={setCaptchaToken} resetKey={captchaReset} />
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading || (captchaEnabled && !captchaToken)}>
               {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Sign Up'}
             </Button>
             <Button 
               type="button" 
               variant="ghost" 
               className="w-full" 
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setError(null);
+                freshChallenge();
+              }}
             >
               {isLogin ? 'Need an account? Sign Up' : 'Already have an account? Sign In'}
             </Button>
