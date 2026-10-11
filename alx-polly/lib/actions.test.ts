@@ -24,6 +24,16 @@ vi.mock('./supabase-server', () => ({
   getCurrentUser: vi.fn(async (s: any) => (await s.auth.getUser()).data.user ?? null),
 }));
 
+const withinRateLimit = vi.fn(async (_action: string, _identity: string) => true);
+const currentClientIp = vi.fn(async () => '203.0.113.9');
+vi.mock('./rate-limit', () => ({
+  withinRateLimit: (a: string, i: string) => withinRateLimit(a, i),
+  currentClientIp: () => currentClientIp(),
+  RATE_LIMITED_MESSAGE: 'Too many attempts. Please wait a few minutes and try again.',
+}));
+const verifyCaptcha = vi.fn(async (_t?: string | null, _ip?: string | null) => true);
+vi.mock('./captcha', () => ({ verifyCaptcha: (t?: string | null, ip?: string | null) => verifyCaptcha(t, ip) }));
+
 import { voteForOption, createPoll, deletePollAction, updatePollAction } from './actions';
 import { revalidatePath } from 'next/cache';
 import { VOTER_COOKIE, signVoterCookie } from './voter';
@@ -39,6 +49,8 @@ beforeEach(() => {
   jar.clear();
   process.env.VOTER_COOKIE_SECRET = 'unit-test-signing-key';
   adminAvailable = true;
+  withinRateLimit.mockResolvedValue(true);
+  verifyCaptcha.mockResolvedValue(true);
   userClient.auth.getUser.mockResolvedValue({ data: { user: { id: USER } } });
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -129,6 +141,98 @@ describe('voteForOption', () => {
     expect((await voteForOption('x', POLL)).success).toBe(false);
     expect((await voteForOption(OPT, "' or 1=1 --")).success).toBe(false);
     expect(adminClient.rpc).not.toHaveBeenCalled();
+  });
+
+  describe('abuse controls', () => {
+    const signedCookie = async () => jar.set(VOTER_COOKIE, (await signVoterCookie(SECRET))!);
+
+    it('rate limits by client ip before anything else is recorded', async () => {
+      await signedCookie();
+      withinRateLimit.mockResolvedValue(false);
+      const res = await voteForOption(OPT, POLL, 'tok');
+      expect(res).toEqual({
+        success: false,
+        error: 'Too many attempts. Please wait a few minutes and try again.',
+        code: 'rate_limited',
+      });
+      expect(adminClient.rpc).not.toHaveBeenCalled();
+      expect(verifyCaptcha).not.toHaveBeenCalled();
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
+
+    it('passes the vote action and the client ip to the limiter', async () => {
+      await signedCookie();
+      adminClient.rpc.mockResolvedValue({ data: 'v', error: null });
+      await voteForOption(OPT, POLL);
+      expect(withinRateLimit).toHaveBeenCalledWith('vote', '203.0.113.9');
+    });
+
+    it('does not rate limit malformed ids or a missing service role (rejected earlier)', async () => {
+      await voteForOption('x', POLL);
+      adminAvailable = false;
+      await voteForOption(OPT, POLL);
+      expect(withinRateLimit).not.toHaveBeenCalled();
+    });
+
+    it('rejects a failed captcha and records nothing', async () => {
+      await signedCookie();
+      verifyCaptcha.mockResolvedValue(false);
+      const res = await voteForOption(OPT, POLL, 'bad');
+      expect(res).toEqual({ success: false, error: 'Please complete the verification and try again.', code: 'captcha_failed' });
+      expect(adminClient.rpc).not.toHaveBeenCalled();
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
+
+    it('verifies the token with the client ip, and a missing token is passed through for the verifier to judge', async () => {
+      await signedCookie();
+      adminClient.rpc.mockResolvedValue({ data: 'v', error: null });
+      await voteForOption(OPT, POLL, 'good-token');
+      expect(verifyCaptcha).toHaveBeenLastCalledWith('good-token', '203.0.113.9');
+      await voteForOption(OPT, POLL);
+      expect(verifyCaptcha).toHaveBeenLastCalledWith(undefined, '203.0.113.9');
+    });
+
+    it('records the vote when the captcha passes', async () => {
+      await signedCookie();
+      adminClient.rpc.mockResolvedValue({ data: 'v9', error: null });
+      expect(await voteForOption(OPT, POLL, 'good')).toEqual({ success: true, voteId: 'v9' });
+    });
+
+    it('checks the captcha before the voter cookie, so bots learn nothing about cookie state', async () => {
+      verifyCaptcha.mockResolvedValue(false);
+      const res = await voteForOption(OPT, POLL, 'bad');
+      expect(res).toMatchObject({ code: 'captcha_failed' });
+    });
+
+    it('maps a closed poll (VT009) to code closed and refreshes the page cache', async () => {
+      await signedCookie();
+      adminClient.rpc.mockResolvedValue({ data: null, error: { code: 'VT009', message: 'POLL_CLOSED' } });
+      const res = await voteForOption(OPT, POLL);
+      expect(res).toEqual({ success: false, error: 'Voting on this poll has closed.', code: 'closed' });
+      expect(revalidatePath).toHaveBeenCalledWith(`/polls/${POLL}`);
+    });
+
+    it('maps a login-only poll (VT010) to code login_required', async () => {
+      await signedCookie();
+      userClient.auth.getUser.mockResolvedValue({ data: { user: null } });
+      adminClient.rpc.mockResolvedValue({ data: null, error: { code: 'VT010', message: 'LOGIN_REQUIRED' } });
+      const res = await voteForOption(OPT, POLL);
+      expect(res).toEqual({ success: false, error: 'You need to sign in to vote on this poll.', code: 'login_required' });
+      expect(adminClient.rpc.mock.calls[0][1].p_user_id).toBeNull();
+    });
+
+    it('passes the verified account id to cast_vote for a signed-in voter', async () => {
+      await signedCookie();
+      adminClient.rpc.mockResolvedValue({ data: 'v', error: null });
+      await voteForOption(OPT, POLL);
+      expect(adminClient.rpc.mock.calls[0][1].p_user_id).toBe(USER);
+    });
+
+    it('keeps VT002 as already_voted for login-only duplicates', async () => {
+      await signedCookie();
+      adminClient.rpc.mockResolvedValue({ data: null, error: { code: 'VT002', message: 'ALREADY_VOTED' } });
+      expect(await voteForOption(OPT, POLL)).toMatchObject({ code: 'already_voted' });
+    });
   });
 
   it('fails clearly, not silently, when the service role key is not configured', async () => {

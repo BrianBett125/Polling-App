@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "path";
+import { SECURITY_HEADERS_STATIC, buildCsp } from "./lib/csp";
 
 const nextConfig: NextConfig = {
   // Silence multiple lockfiles warning by telling Next the tracing root
@@ -10,9 +11,8 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          ...SECURITY_HEADERS_STATIC,
+          { key: "Content-Security-Policy", value: buildCsp(process.env) },
         ],
       },
     ];
