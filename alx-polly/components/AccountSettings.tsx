@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 /** Email, change-password form and the delete-account danger zone. */
 export function AccountSettings({ email }: { email: string }) {
-  const { updatePassword } = useAuth();
+  const { updatePassword, signOut } = useAuth();
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -23,6 +23,7 @@ export function AccountSettings({ email }: { email: string }) {
   const [typedEmail, setTypedEmail] = useState('');
   const [delError, setDelError] = useState<string | null>(null);
   const [delBusy, setDelBusy] = useState(false);
+  const [needsReauth, setNeedsReauth] = useState(false);
 
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,9 +49,15 @@ export function AccountSettings({ email }: { email: string }) {
     }
   };
 
+  const signInAgain = async () => {
+    await signOut();
+    window.location.assign('/auth?next=%2Faccount');
+  };
+
   const deleteAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setDelError(null);
+    setNeedsReauth(false);
     if (!emailMatches(typedEmail, email)) {
       setDelError('Type your account email exactly to confirm.');
       return;
@@ -60,6 +67,7 @@ export function AccountSettings({ email }: { email: string }) {
       const res = await deleteAccountAction(typedEmail);
       if (!res.success) {
         setDelError(res.error);
+        setNeedsReauth(res.code === 'reauth_required');
         return;
       }
       // Full navigation so every client-side cache of the old session is dropped.
@@ -146,6 +154,11 @@ export function AccountSettings({ email }: { email: string }) {
             {delError && (
               <div role="alert" className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
                 {delError}
+                {needsReauth && (
+                  <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={signInAgain}>
+                    Sign out and sign in again
+                  </Button>
+                )}
               </div>
             )}
             <div className="space-y-2">

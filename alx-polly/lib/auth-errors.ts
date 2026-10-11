@@ -47,7 +47,18 @@ const BY_MESSAGE: Array<[RegExp, string]> = [
   [/not configured|environment variables are missing/, 'This site is not configured yet. Please try again later.'],
 ];
 
-/** True when the error is a rate limit (so "forgot password" must still surface it). */
+/**
+ * True for limits that apply to everyone (the project's email budget, the per-IP request limit).
+ * "Forgot password" may show these. It must NOT show the per-account throttle ("you can only request
+ * this after N seconds"): that error appears only for addresses that have an account.
+ */
+export function isSharedRateLimitError(error: unknown): boolean {
+  const { code, message } = parts(error);
+  if (/you can only request this after/.test(message)) return false;
+  return code === 'over_request_rate_limit' || /email rate limit exceeded/.test(message);
+}
+
+/** True when the error is any rate limit. */
 export function isRateLimitError(error: unknown): boolean {
   const { code, message } = parts(error);
   if (code && /rate_limit/.test(code)) return true;

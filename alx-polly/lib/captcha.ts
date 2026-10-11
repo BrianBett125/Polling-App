@@ -22,7 +22,14 @@ export async function verifyCaptcha(
 ): Promise<boolean> {
   const env = deps.env ?? process.env;
   const secret = env.TURNSTILE_SECRET_KEY;
-  if (!secret) return true;
+  if (!secret) {
+    if (env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) {
+      // The widget is shown but nothing can verify it. Failing open would make the widget decoration.
+      console.error('Turnstile site key is set but TURNSTILE_SECRET_KEY is not: refusing votes until fixed');
+      return false;
+    }
+    return true;
+  }
   if (!token || token.length > 4096) return false;
 
   const body = new URLSearchParams({ secret, response: token });

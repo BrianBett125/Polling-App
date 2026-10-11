@@ -37,6 +37,12 @@ describe('withinRateLimit', () => {
     expect(await withinRateLimit('vote', '1.1.1.1', { admin: fakeAdmin({ data: true }) })).toBe(true);
   });
 
+  it('does not put every unidentifiable client in one shared bucket', async () => {
+    const admin = fakeAdmin({ data: false });
+    expect(await withinRateLimit('vote', 'unknown', { admin })).toBe(true);
+    expect((admin as unknown as { rpc: ReturnType<typeof vi.fn> }).rpc).not.toHaveBeenCalled();
+  });
+
   it('fails open when the service role is not configured or the call errors', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(await withinRateLimit('vote', 'x', { admin: null })).toBe(true);

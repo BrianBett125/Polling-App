@@ -19,6 +19,13 @@ describe('verifyCaptcha', () => {
     expect(f).not.toHaveBeenCalled();
   });
 
+  it('fails closed when the widget is configured but the secret is missing', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await verifyCaptcha('tok', null, { env: { NEXT_PUBLIC_TURNSTILE_SITE_KEY: 'k' }, fetchImpl: ok(true) as never })).toBe(false);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it('accepts a token Cloudflare approves, sending secret, token and ip', async () => {
     const f = ok(true);
     expect(await verifyCaptcha('tok', '1.2.3.4', { env: { TURNSTILE_SECRET_KEY: 's' }, fetchImpl: f as never })).toBe(true);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { friendlyAuthError, isRateLimitError, GENERIC_AUTH_ERROR } from './auth-errors';
+import { friendlyAuthError, isRateLimitError, isSharedRateLimitError, GENERIC_AUTH_ERROR } from './auth-errors';
 
 describe('friendlyAuthError', () => {
   it.each([
@@ -50,6 +50,20 @@ describe('friendlyAuthError', () => {
     expect(friendlyAuthError('Invalid login credentials')).toMatch(/incorrect/i);
     expect(friendlyAuthError({ message: 123 })).toBe(GENERIC_AUTH_ERROR);
     expect(friendlyAuthError(new Error('Email not confirmed'))).toMatch(/confirm/i);
+  });
+});
+
+describe('isSharedRateLimitError', () => {
+  it('is true for limits that apply to every address', () => {
+    expect(isSharedRateLimitError({ code: 'over_request_rate_limit', message: 'x' })).toBe(true);
+    expect(isSharedRateLimitError({ message: 'email rate limit exceeded' })).toBe(true);
+  });
+  it('is false for the per-account throttle, which would reveal that an account exists', () => {
+    expect(
+      isSharedRateLimitError({ code: 'over_email_send_rate_limit', message: 'For security purposes, you can only request this after 5 seconds.' }),
+    ).toBe(false);
+    expect(isSharedRateLimitError({ message: 'User not found' })).toBe(false);
+    expect(isSharedRateLimitError(null)).toBe(false);
   });
 });
 

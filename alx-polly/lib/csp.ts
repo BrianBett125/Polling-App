@@ -29,9 +29,9 @@ export function buildCsp(env: CspEnv = process.env): string {
   const scriptSrc = ["'self'", "'unsafe-inline'", ...(dev ? ["'unsafe-eval'"] : []), 'https://challenges.cloudflare.com', 'https://va.vercel-scripts.com'];
   const connectSrc = [
     "'self'",
-    ...(supabase ? [supabase] : []),
-    'https://*.supabase.co',
-    'wss://*.supabase.co',
+    // The exact project origin when known. The wildcard is only a fallback for builds without the
+    // variable: with it, injected script could post data to any attacker-owned Supabase project.
+    ...(supabase ? [supabase] : ['https://*.supabase.co']),
     'https://*.ingest.sentry.io',
     'https://*.ingest.us.sentry.io',
     'https://vitals.vercel-insights.com',

@@ -32,6 +32,9 @@ export async function withinRateLimit(
   identity: string,
   deps: { admin?: ReturnType<typeof getAdminSupabase> } = {},
 ): Promise<boolean> {
+  // No usable client address (no forwarding header): one shared bucket would let a single caller
+  // lock every visitor out, so this layer steps aside. The captcha and the database still apply.
+  if (identity === 'unknown') return true;
   const admin = deps.admin === undefined ? getAdminSupabase() : deps.admin;
   if (!admin) return true;
   const [limit, windowSeconds] = LIMITS_BY_ACTION[action];

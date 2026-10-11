@@ -21,13 +21,14 @@ import { deleteAccountAction } from './actions-account';
 import { revalidatePath } from 'next/cache';
 import { withinRateLimit } from './rate-limit';
 
-const USER = { id: '33333333-3333-4333-8333-333333333333', email: 'Ann@Example.com' };
+const recent = () => new Date(Date.now() - 60_000).toISOString();
+const USER = { id: '33333333-3333-4333-8333-333333333333', email: 'Ann@Example.com', last_sign_in_at: recent() };
 
 beforeEach(() => {
   vi.clearAllMocks();
   adminAvailable = true;
   allowed = true;
-  userClient.auth.getUser.mockResolvedValue({ data: { user: USER } });
+  userClient.auth.getUser.mockResolvedValue({ data: { user: { ...USER, last_sign_in_at: recent() } } });
   userClient.auth.signOut.mockResolvedValue({ error: null });
   adminClient.auth.admin.deleteUser.mockResolvedValue({ error: null });
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -38,6 +39,23 @@ describe('deleteAccountAction', () => {
     userClient.auth.getUser.mockResolvedValue({ data: { user: null } });
     const res = await deleteAccountAction('ann@example.com');
     expect(res).toMatchObject({ success: false, code: 'not_authenticated' });
+    expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('asks for a fresh sign-in when the last one was over 15 minutes ago, before anything else', async () => {
+    const old = new Date(Date.now() - 16 * 60_000).toISOString();
+    userClient.auth.getUser.mockResolvedValue({ data: { user: { ...USER, last_sign_in_at: old } } });
+    const res = await deleteAccountAction('ann@example.com');
+    expect(res).toMatchObject({ success: false, code: 'reauth_required' });
+    expect(withinRateLimit).not.toHaveBeenCalled();
+    expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('treats a missing or unparseable last_sign_in_at as not recent', async () => {
+    for (const v of [undefined, null, 'garbage']) {
+      userClient.auth.getUser.mockResolvedValue({ data: { user: { ...USER, last_sign_in_at: v } } });
+      expect(await deleteAccountAction('ann@example.com')).toMatchObject({ code: 'reauth_required' });
+    }
     expect(adminClient.auth.admin.deleteUser).not.toHaveBeenCalled();
   });
 

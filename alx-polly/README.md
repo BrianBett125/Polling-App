@@ -6,12 +6,23 @@ Signed-in users create polls and manage their own. Anyone with a poll's link can
 
 ## Features
 
-- Email and password registration, login and logout (Supabase Auth).
-- Create, edit (title and description) and delete your own polls. `/polls` lists the polls you own. Options and votes cannot be edited after creation.
-- Every poll lives at its own URL, `/polls/<uuid>`. The page is public: no sign-in needed to view or vote.
-- Share panel on each poll page: read-only link, "Copy link" button, "Share…" button where the browser supports the Web Share API, and a QR code. The URL is built in the browser from the origin the page was loaded from, so it is right on localhost, preview and production without any configured domain.
-- Results with per-option counts and whole-number percentages that add up to 100. A poll with no votes shows 0% and an empty-state message.
-- Friendly states for unknown or deleted polls, failed database calls, duplicate votes, loading, and empty lists. Database error text is logged on the server, never shown to visitors.
+**Polls**
+- Email and password registration, login, logout, password reset ("Forgot password") and an account page with change password and delete account.
+- Create polls with 2 to 20 options. Optional closing time, optional "sign in to vote" rule, and a choice to show results always or only after the poll closes.
+- Owners can edit title, description and settings, rewrite options until the first vote arrives, close or reopen voting, export results as CSV, and delete the poll.
+- `/polls` lists your polls with search and pages of 12, plus Closed, Closes and Sign-in badges.
+- Every poll lives at its own URL, `/polls/<uuid>`. The page is public: no sign-in needed to view or vote (unless the owner required it). Polls cannot be listed through the API; the link is the only way in.
+- Results with per-option counts and whole-number percentages that add up to 100, refreshed every few seconds while the tab is visible.
+
+**Sharing**
+- Share panel: read-only link, "Copy link", "Share…" where the browser supports it, a QR code, and "Download QR" as PNG or SVG.
+- Link previews: each poll has an Open Graph title and a generated 1200x630 card (no vote counts in it).
+
+**Safety and operations**
+- Cloudflare Turnstile on voting and sign-up, off until you set its keys. Database-backed rate limits on voting, poll creation and account deletion.
+- Content-Security-Policy, HSTS and other security headers. Friendly error pages. Optional Sentry error reporting and Vercel Analytics. `/api/health` for uptime checks.
+- Light, dark and system themes, skip link, labelled forms, axe-checked pages.
+- GitHub Actions CI, a post-deploy smoke script, a live browser end-to-end script and a backup script.
 
 ## How voting works (and what it does not guarantee)
 
@@ -52,6 +63,11 @@ Create `alx-polly/.env.local` (see `.env.example`; never commit real values):
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | app (browser and server) | Public anon key. Inlined at build time. |
 | `SUPABASE_SERVICE_ROLE_KEY` | app (server only) | Required for voting and for the voted/not-voted check. Never prefix with `NEXT_PUBLIC_`. Without it, voting shows "Voting is not available right now". |
 | `VOTER_COOKIE_SECRET` | app (server only) | Optional. Key used to sign voter cookies. Defaults to `SUPABASE_SERVICE_ROLE_KEY`. Changing the key you use (including rotating the service role key when no separate secret is set) invalidates every voter cookie, so everyone can vote once more. Set a separate `VOTER_COOKIE_SECRET` to avoid that coupling. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | app (browser) | Optional. Shows the Cloudflare Turnstile widget on voting and sign-up. See `docs/SECURITY.md`. |
+| `TURNSTILE_SECRET_KEY` | app (server only) | Optional. Verifies Turnstile tokens on votes. Put the same secret in Supabase > Authentication > Bot and Abuse Protection for sign-up. |
+| `NEXT_PUBLIC_SENTRY_DSN` | app (browser and server) | Optional. Enables Sentry. Unset means Sentry is not bundled and nothing is sent. See `docs/OBSERVABILITY.md`. |
+| `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | app | Optional, default 0.1. |
+| `NEXT_PUBLIC_SITE_URL` | app | Optional. Canonical site URL for link previews (falls back to the Vercel production URL). |
 | `SUPABASE_DB_URL` | `npm run db:migrate` only | Direct Postgres connection string from the Supabase dashboard. Not needed at runtime. |
 | `TEST_DATABASE_URL` | `npm run test:db` only | Admin connection to a throwaway Postgres. Never point it at a real project. |
 
@@ -63,6 +79,7 @@ Migrations are in `supabase/migrations/`, applied in filename order:
 2. `20250906_create_polls_with_totals_view.sql` totals view for the poll list.
 3. `20251005000000_browser_vote_identity_and_rls.sql` browser-level voting, stricter RLS, atomic poll creation, option ordering, count integrity.
 4. `20251006000000_poll_options_insert_guard.sql` caps options at 20 and refuses new options once a poll has votes, even for direct API inserts (concurrency-safe: `cast_vote` now takes a shared lock on the poll row).
+5. `20251007000000_robustness.sql` closing and login-only polls, results visibility, unlisted polls (polls are readable one at a time through `get_poll`), `replace_poll_options`, DB-backed rate limits, and account-deletion cascades. **Apply it before deploying the matching app version**: the new app calls functions that do not exist before it.
 
 Apply them with:
 
@@ -122,15 +139,28 @@ The build needs the two `NEXT_PUBLIC_` variables set because pages that use Supa
 5. `vercel.json` pins the Next.js framework, `npm ci` / `npm run build`, (security headers live in `next.config.ts`). After a deploy, run `node scripts/smoke.js https://<your-url> [pollId]` for read-only live checks.
 6. If a deploy fails, open the failed deployment's build log. A build that stops with `[check-env] ERROR` is missing `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`; add them under Settings > Environment Variables and redeploy (they cannot be added after the fact to an existing build). `No Next.js version detected` means the Root Directory is not `alx-polly`.
 
+## Documentation
+
+| Topic | File |
+| --- | --- |
+| Poll settings, closing, locked options, CSV, live results | `docs/POLLS.md` |
+| Sign-in, password reset, account deletion | `docs/AUTH.md` |
+| Email delivery (custom SMTP, "Confirm email") | `docs/EMAIL.md` |
+| Voting threat model, Turnstile, rate limits, CSP | `docs/SECURITY.md` |
+| Error reporting and analytics | `docs/OBSERVABILITY.md` |
+| Accessibility audit and theme | `docs/ACCESSIBILITY.md` |
+| Custom domain, backups, key rotation, release checklist | `docs/OPERATIONS.md` |
+
 ## Known limitations
 
 - Browser-level voting is easy to evade (see above) and is not suitable where the result matters.
-- Poll rows are readable by anyone holding the public anon key (Row Level Security allows `select`), because the link is the only gate. Treat poll links as unlisted, not secret.
-- Deleting a Supabase auth user who owns polls or has votes fails with a foreign-key error (no `ON DELETE` rule on `created_by` / `user_id`). Delete or reassign their polls first.
+- Polls are unlisted, not secret: anyone who has a poll's link can open it, and `get_poll` returns it. They cannot be enumerated through the API.
+- Deleting an account deletes the polls it owns (with their options and votes). Votes that account cast on other people's polls stay, without the account link.
 - Polls created before the ownership rules that have no owner stay readable and votable but cannot be edited or deleted by anyone.
 - The share link and QR code appear once the page has loaded in the browser (they need the page's own origin).
 - A browser gets its voter cookie when it loads a poll page; voting without cookies enabled is refused, not counted. In production mode the cookie is `Secure`, so over plain `http://` on a non-localhost host (for example `next start` on a LAN IP) browsers drop it and voting is refused; use HTTPS or localhost.
-- Results update when the page loads or after you vote; there is no realtime push.
+- Results refresh by polling every 8 seconds while the tab is visible, not by realtime push.
+- Saving the edit form runs three requests (options, text, settings). If one fails, the earlier ones stay saved and the page says so.
 - Unknown or deleted poll URLs show a "Poll not found" page with HTTP 200 because the page streams; they are not indexed-friendly 404s.
 
 ## How AI tools were used in this build
@@ -150,7 +180,9 @@ AI-written code was reviewed and run, not trusted: the tests and commands in thi
 
 ## Repository layout
 
-- `app/` routes: `/auth`, `/polls` (my polls), `/polls/new`, `/polls/[id]` (public), `/polls/[id]/edit`
+- `app/` routes: `/auth`, `/auth/forgot`, `/auth/reset`, `/account`, `/polls` (my polls), `/polls/new`, `/polls/[id]` (public), `/polls/[id]/edit`, `/polls/[id]/export`, `/api/health`
+- `docs/` topic guides (see Documentation)
+- `.github/workflows/` CI and manual live checks; `scripts/e2e/`, `scripts/smoke.js`, `scripts/backup.js`
 - `components/` UI, including `ShareCard`, `VoteForm`, `ResultsList`
 - `lib/` server actions (`actions.ts`), Supabase clients, validation, results math, voter identity
 - `supabase/migrations/` SQL; `supabase/README.md` schema notes

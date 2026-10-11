@@ -120,7 +120,7 @@ BEGIN
     'id', p.id,
     'title', p.title,
     'description', p.description,
-    'created_by', p.created_by,
+    'created_by', CASE WHEN v_owner THEN p.created_by ELSE NULL END,
     'created_at', p.created_at,
     'closes_at', p.closes_at,
     'closed_at', p.closed_at,
@@ -349,3 +349,60 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.check_rate_limit(TEXT, INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.check_rate_limit(TEXT, INTEGER, INTEGER) TO service_role;
+
+-------------------------------
+-- 7. Hardening found in review
+-------------------------------
+-- (a) The option guard from migration 4 ran BEFORE the row-level-security check, so a stranger could
+-- insert into poll_options for any poll id and read the guard's error: VT008 meant "this poll has
+-- votes", which defeats results_visibility = 'after_close'. As an AFTER INSERT trigger it runs only for
+-- rows RLS already accepted (owners), and a failure still rolls the insert back. The row lock keeps the
+-- same serialisation against voters. The count now includes the new row, hence > 20.
+CREATE OR REPLACE FUNCTION public.guard_poll_option_insert()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $$
+BEGIN
+  PERFORM 1 FROM public.polls WHERE id = NEW.poll_id FOR NO KEY UPDATE;
+
+  IF EXISTS (SELECT 1 FROM public.votes WHERE poll_id = NEW.poll_id) THEN
+    RAISE EXCEPTION 'POLL_HAS_VOTES' USING ERRCODE = 'VT008';
+  END IF;
+  IF (SELECT count(*) FROM public.poll_options WHERE poll_id = NEW.poll_id) > 20 THEN
+    RAISE EXCEPTION 'INVALID_OPTIONS' USING ERRCODE = 'VT007';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.guard_poll_option_insert() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS poll_options_insert_guard ON public.poll_options;
+CREATE TRIGGER poll_options_insert_guard
+  AFTER INSERT ON public.poll_options
+  FOR EACH ROW EXECUTE FUNCTION public.guard_poll_option_insert();
+
+-- (b) Backstop for poll creation. The app limits 10 per hour per account; someone calling the API
+-- directly with their own session skips the app, so the database caps it too.
+CREATE OR REPLACE FUNCTION public.guard_poll_insert_rate()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_catalog
+AS $$
+BEGIN
+  IF NEW.created_by IS NOT NULL
+     AND (SELECT count(*) FROM public.polls
+           WHERE created_by = NEW.created_by AND created_at > now() - interval '1 hour') >= 30 THEN
+    RAISE EXCEPTION 'RATE_LIMITED' USING ERRCODE = 'VT014';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.guard_poll_insert_rate() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS polls_insert_rate_guard ON public.polls;
+CREATE TRIGGER polls_insert_rate_guard
+  BEFORE INSERT ON public.polls
+  FOR EACH ROW EXECUTE FUNCTION public.guard_poll_insert_rate();

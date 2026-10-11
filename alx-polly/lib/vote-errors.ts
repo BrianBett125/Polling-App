@@ -16,6 +16,7 @@ const MESSAGES: Record<string, string> = {
   VT010: 'You need to sign in to vote on this poll.',
   VT011: 'Only the poll owner can do that.',
   VT012: 'Check the poll settings: the closing time must be in the future.',
+  VT014: 'You are creating polls too quickly. Please wait a while and try again.',
 };
 
 export const GENERIC_VOTE_ERROR = 'Something went wrong while recording your vote. Please try again.';

@@ -5,6 +5,9 @@ import { getServerSupabase, getAdminSupabase, getCurrentUser } from './supabase-
 import { withinRateLimit, RATE_LIMITED_MESSAGE } from './rate-limit';
 import type { ActionResult } from './types/action-result';
 
+/** How recently the user must have signed in to delete their account. */
+const REAUTH_WINDOW_MS = 15 * 60 * 1000;
+
 /** Case-insensitive, whitespace-trimmed email comparison used for the delete confirmation. */
 function sameEmail(typed: unknown, actual: string | undefined): boolean {
   return typeof typed === 'string' && !!actual && typed.trim().toLowerCase() === actual.trim().toLowerCase();
@@ -21,6 +24,17 @@ export async function deleteAccountAction(confirmEmail: string): Promise<ActionR
   const user = await getCurrentUser(supabase);
   if (!user) {
     return { success: false, error: 'Please sign in to continue.', code: 'not_authenticated' };
+  }
+
+  // A stolen or left-open session should not be enough to erase an account: require a sign-in
+  // (not just a token refresh, which does not change last_sign_in_at) within the last 15 minutes.
+  const lastSignIn = Date.parse(user.last_sign_in_at ?? '');
+  if (!Number.isFinite(lastSignIn) || Date.now() - lastSignIn > REAUTH_WINDOW_MS) {
+    return {
+      success: false,
+      error: 'For your security, sign in again before deleting your account.',
+      code: 'reauth_required',
+    };
   }
 
   if (!sameEmail(confirmEmail, user.email)) {

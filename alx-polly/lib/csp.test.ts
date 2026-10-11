@@ -33,8 +33,6 @@ describe('buildCsp', () => {
     for (const h of [
       "'self'",
       'https://abcd.supabase.co',
-      'https://*.supabase.co',
-      'wss://*.supabase.co',
       'https://*.ingest.sentry.io',
       'https://*.ingest.us.sentry.io',
       'https://vitals.vercel-insights.com',
@@ -43,6 +41,12 @@ describe('buildCsp', () => {
       expect(connect.split(' ')).toContain(h);
     }
     expect(connect).not.toContain('abcd.supabase.co/');
+  });
+
+  it('allows only the project origin, not every Supabase project, when the URL is known', () => {
+    const connect = directive(buildCsp(prod), 'connect-src')!;
+    expect(connect).not.toContain('*.supabase.co');
+    expect(connect).not.toContain('wss://');
   });
 
   it('adds unsafe-eval and websockets in development only', () => {

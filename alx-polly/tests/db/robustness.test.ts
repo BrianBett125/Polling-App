@@ -230,3 +230,48 @@ describe('dashboard view', () => {
     expect((await db.as('authenticated', B, 'select 1 from polls_with_totals where id=$1', [p.id])).rowCount).toBe(0);
   });
 });
+
+describe('review hardening', () => {
+  it('a stranger cannot learn whether a poll has votes or is full by inserting options', async () => {
+    const p = await newPoll(A, { visibility: 'after_close' });
+    const insert = (role: 'anon' | 'authenticated', uid: string | null) =>
+      db.as(role, uid, `insert into poll_options(poll_id,text) values ($1,'z')`, [p.id]);
+    await expect(insert('anon', null)).rejects.toMatchObject({ code: '42501' });
+    await expect(insert('authenticated', B)).rejects.toMatchObject({ code: '42501' });
+    await vote(p.id, p.opts[0], token('1'));
+    await expect(insert('anon', null)).rejects.toMatchObject({ code: '42501' });
+    await expect(insert('authenticated', B)).rejects.toMatchObject({ code: '42501' });
+
+    const full = await newPoll(A, {}, Array.from({ length: 20 }, (_, i) => `o${i}`));
+    await expect(
+      db.as('authenticated', B, `insert into poll_options(poll_id,text) values ($1,'z')`, [full.id]),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('the owner still gets the real reasons', async () => {
+    const p = await newPoll(A);
+    await vote(p.id, p.opts[0], token('2'));
+    await expect(
+      db.as('authenticated', A, `insert into poll_options(poll_id,text) values ($1,'z')`, [p.id]),
+    ).rejects.toMatchObject({ code: 'VT008' });
+    const full = await newPoll(A, {}, Array.from({ length: 20 }, (_, i) => `o${i}`));
+    await expect(
+      db.as('authenticated', A, `insert into poll_options(poll_id,text) values ($1,'z')`, [full.id]),
+    ).rejects.toMatchObject({ code: 'VT007' });
+  });
+
+  it('get_poll shows the owner id to the owner only', async () => {
+    const p = await newPoll(A);
+    expect((await getPoll('anon', null, p.id)).created_by).toBeNull();
+    expect((await getPoll('authenticated', B, p.id)).created_by).toBeNull();
+    expect((await getPoll('authenticated', A, p.id)).created_by).toBe(A);
+  });
+
+  it('caps direct poll creation per account per hour, whatever the app does', async () => {
+    const D = '00000000-0000-4000-8000-00000000000d';
+    await db.admin('insert into auth.users(id,email) values ($1,$2)', [D, 'd@x.test']);
+    for (let i = 0; i < 30; i++) await newPoll(D);
+    await expect(newPoll(D)).rejects.toMatchObject({ code: 'VT014', message: 'RATE_LIMITED' });
+    await newPoll(B); // other accounts are unaffected
+  });
+});

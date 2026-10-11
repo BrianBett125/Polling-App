@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/auth-context';
-import { friendlyAuthError, isRateLimitError } from '@/lib/auth-errors';
+import { friendlyAuthError, isSharedRateLimitError } from '@/lib/auth-errors';
 import { Turnstile, captchaEnabled } from '@/components/Turnstile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       const { error } = await resetPassword(email.trim(), captchaToken ?? undefined);
-      if (error && isRateLimitError(error)) {
+      if (error && isSharedRateLimitError(error)) {
         setError(friendlyAuthError(error));
       } else {
         // Every other outcome, including "no such user", looks identical on purpose.
