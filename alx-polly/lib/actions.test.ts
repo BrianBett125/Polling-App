@@ -254,6 +254,12 @@ function pollForm(extra: Record<string, string> = {}) {
 }
 
 describe('createPoll', () => {
+  beforeEach(() => {
+    // The rate limiter talks to the admin client; default to "within budget".
+    adminClient.rpc.mockReset();
+    adminClient.rpc.mockResolvedValue({ data: true, error: null });
+  });
+
   it('creates via the atomic RPC and redirects to the poll page', async () => {
     userClient.rpc.mockResolvedValue({ data: POLL, error: null });
     await expect(createPoll(pollForm())).rejects.toMatchObject({ redirectedTo: `/polls/${POLL}?created=1` });
@@ -261,8 +267,59 @@ describe('createPoll', () => {
       p_title: 'Lunch?',
       p_description: 'where',
       p_options: ['Pizza', 'Tacos'],
+      p_closes_at: null,
+      p_require_login: false,
+      p_results_visibility: 'always',
     });
     expect(revalidatePath).toHaveBeenCalledWith('/polls');
+  });
+
+  it('passes closing time, login requirement and result visibility to the RPC', async () => {
+    userClient.rpc.mockResolvedValue({ data: POLL, error: null });
+    const closes = new Date(Date.now() + 86_400_000).toISOString();
+    await expect(
+      createPoll(pollForm({ closes_at: closes, require_login: 'on', results_visibility: 'after_close' })),
+    ).rejects.toMatchObject({ redirectedTo: `/polls/${POLL}?created=1` });
+    expect(userClient.rpc.mock.calls[0][1]).toMatchObject({
+      p_closes_at: closes,
+      p_require_login: true,
+      p_results_visibility: 'after_close',
+    });
+  });
+
+  it('rejects a closing time in the past before any database call', async () => {
+    const res = await createPoll(pollForm({ closes_at: new Date(Date.now() - 60_000).toISOString() }));
+    expect(res).toEqual({ success: false, error: 'The closing time must be in the future' });
+    expect(userClient.rpc).not.toHaveBeenCalled();
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+  });
+
+  it('rate limits per account BEFORE creating anything', async () => {
+    adminClient.rpc.mockResolvedValue({ data: false, error: null });
+    const res = await createPoll(pollForm());
+    expect(res).toEqual({
+      success: false,
+      error: 'Too many attempts. Please wait a few minutes and try again.',
+      code: 'rate_limited',
+    });
+    expect(adminClient.rpc).toHaveBeenCalledWith('check_rate_limit', expect.objectContaining({ p_limit: 10, p_window_seconds: 3600 }));
+    expect(userClient.rpc).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('does not spend rate-limit budget on signed-out or invalid submissions', async () => {
+    userClient.auth.getUser.mockResolvedValue({ data: { user: null } });
+    await createPoll(pollForm());
+    await createPoll(pollForm({ title: ' ' }));
+    expect(adminClient.rpc).not.toHaveBeenCalled();
+  });
+
+  it('maps a database rejection of the settings to a friendly message', async () => {
+    userClient.rpc.mockResolvedValue({ data: null, error: { code: 'VT012', message: 'INVALID_SETTINGS' } });
+    expect(await createPoll(pollForm())).toEqual({
+      success: false,
+      error: 'Check the poll settings: the closing time must be in the future.',
+    });
   });
 
   it('refuses signed-out users without calling the database', async () => {

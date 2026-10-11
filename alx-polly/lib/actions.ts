@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import type { ActionResult } from './types/action-result';
 import { getAdminSupabase, getCurrentUser, getServerSupabase } from './supabase-server';
 import { parsePollEdit, parsePollForm } from './poll-form';
+import { RATE_LIMITED_MESSAGE, withinRateLimit } from './rate-limit';
 import { isUuid } from './route-protection';
 import { GENERIC_CREATE_ERROR, GENERIC_VOTE_ERROR, isAlreadyVoted, messageForDbError } from './vote-errors';
 import { RATE_LIMITED_MESSAGE, currentClientIp, withinRateLimit } from './rate-limit';
@@ -108,10 +109,18 @@ export async function createPoll(formData: FormData): Promise<ActionResult> {
   const user = await getCurrentUser(supabase);
   if (!user) return SIGN_IN_REQUIRED;
 
+  // Budget per account, checked before any write. Fails open if the limiter itself is down.
+  if (!(await withinRateLimit('createPoll', user.id))) {
+    return { success: false, error: RATE_LIMITED_MESSAGE, code: 'rate_limited' };
+  }
+
   const { data, error } = await supabase.rpc('create_poll_with_options', {
     p_title: parsed.value.title,
     p_description: parsed.value.description || null,
     p_options: parsed.value.options,
+    p_closes_at: parsed.value.closesAt,
+    p_require_login: parsed.value.requireLogin,
+    p_results_visibility: parsed.value.resultsVisibility,
   });
 
   if (error || !data) {

@@ -6,7 +6,11 @@ interface ResultsListProps {
   yourOptionId?: string | null;
 }
 
-/** Vote counts and percentages per option. Works without JavaScript and reads clearly to screen readers. */
+/**
+ * Vote counts and percentages per option. Works without JavaScript and reads clearly to screen readers.
+ * Live announcements of changing totals come from LiveRefresh. Hidden results are handled by the page,
+ * which does not render this list at all while the owner has results set to "after close".
+ */
 export function ResultsList({ options, yourOptionId }: ResultsListProps) {
   const { total, rows } = computeResults(options);
 
@@ -16,7 +20,7 @@ export function ResultsList({ options, yourOptionId }: ResultsListProps) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground" aria-live="polite">
+      <p className="text-sm text-muted-foreground">
         {total === 0 ? 'No votes yet. Be the first to vote.' : `${formatVotes(total)} in total`}
       </p>
       <ul className="space-y-3">
