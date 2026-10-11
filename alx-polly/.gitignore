@@ -42,3 +42,6 @@ next-env.d.ts
 
 # keep the committed template
 !.env.example
+
+# local data backups from scripts/backup.js; they contain user data, never commit
+/backups/

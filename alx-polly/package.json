@@ -13,7 +13,10 @@
     "db:migrate": "node scripts/apply-migrations.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:db": "vitest run --config vitest.db.config.ts"
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "backup": "node scripts/backup.js",
+    "smoke": "node scripts/smoke.js",
+    "e2e:live": "node scripts/e2e/run.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
