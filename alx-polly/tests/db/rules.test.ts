@@ -137,14 +137,19 @@ describe('RLS: votes are private and write-protected', () => {
 });
 
 describe('RLS: polls and options', () => {
-  it('lets anyone read polls, options and totals by link', async () => {
-    expect((await db.as('anon', null, 'select id from polls where id=$1', [pollId])).rowCount).toBe(1);
-    expect((await db.as('anon', null, 'select id from poll_options where poll_id=$1', [pollId])).rowCount).toBe(2);
+  it('lets anyone read one poll by link (get_poll) but not list polls, options or totals', async () => {
+    expect((await db.as('anon', null, 'select id from polls')).rowCount).toBe(0);
+    expect((await db.as('anon', null, 'select id from poll_options')).rowCount).toBe(0);
+    expect((await db.as('authenticated', B, 'select id from polls where id=$1', [pollId])).rowCount).toBe(0);
+    await expect(db.as('anon', null, 'select total_votes from polls_with_totals')).rejects.toMatchObject({ code: '42501' });
+    const got = await db.as('anon', null, 'select public.get_poll($1) as p', [pollId]);
+    expect(got.rows[0].p.options).toHaveLength(2);
     const p = await newPoll(A);
     await vote(p.id, p.opts[0], token('4'));
     await vote(p.id, p.opts[1], token('5'));
-    const t = await db.as('anon', null, 'select total_votes from polls_with_totals where id=$1', [p.id]);
+    const t = await db.as('authenticated', A, 'select total_votes from polls_with_totals where id=$1', [p.id]);
     expect(t.rows[0].total_votes).toBe(2);
+    expect((await db.as('authenticated', B, 'select total_votes from polls_with_totals where id=$1', [p.id])).rowCount).toBe(0);
   });
 
   it('refuses anonymous poll creation, direct and via the RPC', async () => {
@@ -205,7 +210,7 @@ describe('RLS: polls and options', () => {
     await expect(
       db.as('authenticated', A, `insert into poll_options(poll_id,text,votes) values ($1,'x',999)`, [p.id]),
     ).rejects.toMatchObject({ code: '42501' });
-    expect((await db.as('anon', null, 'select total_votes from polls_with_totals where id=$1', [p.id])).rows[0].total_votes).toBe(0);
+    expect((await db.as('authenticated', A, 'select total_votes from polls_with_totals where id=$1', [p.id])).rows[0].total_votes).toBe(0);
   });
 
   it('lets an owner add options to a poll with no votes, up to 20, and never after voting starts', async () => {

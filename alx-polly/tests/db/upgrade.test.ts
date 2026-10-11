@@ -93,8 +93,8 @@ describe('upgrading a database that already has data', () => {
     ).rejects.toMatchObject({ code: '23503' });
   });
 
-  it('leaves polls with no owner readable but unmanageable', async () => {
-    expect((await db.as('anon', null, 'select id from polls where id=$1', [P2])).rowCount).toBe(1);
+  it('leaves polls with no owner readable by link (get_poll) but unmanageable', async () => {
+    expect((await db.as('anon', null, 'select public.get_poll($1) as p', [P2])).rows[0].p.id).toBe(P2);
     expect((await db.as('authenticated', U1, 'delete from polls where id=$1', [P2])).rowCount).toBe(0);
   });
 });

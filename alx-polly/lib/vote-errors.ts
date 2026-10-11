@@ -11,7 +11,11 @@ const MESSAGES: Record<string, string> = {
   VT005: 'Please sign in to create a poll.',
   VT006: 'Poll titles must be between 1 and 200 characters.',
   VT007: 'A poll needs between 2 and 20 options, each up to 200 characters.',
-  VT008: 'Options cannot be added after voting has started.',
+  VT008: 'Options cannot be changed after voting has started.',
+  VT009: 'Voting on this poll has closed.',
+  VT010: 'You need to sign in to vote on this poll.',
+  VT011: 'Only the poll owner can do that.',
+  VT012: 'Check the poll settings: the closing time must be in the future.',
 };
 
 export const GENERIC_VOTE_ERROR = 'Something went wrong while recording your vote. Please try again.';

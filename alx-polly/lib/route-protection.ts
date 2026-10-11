@@ -12,7 +12,7 @@ export function isProtectedPath(pathname: string): boolean {
   }
   const collapsed = decoded.toLowerCase().replace(/\/{2,}/g, '/');
   const p = collapsed.length > 1 ? collapsed.replace(/\/+$/, '') : collapsed;
-  if (p === '/polls' || p === '/polls/new') return true;
+  if (p === '/polls' || p === '/polls/new' || p === '/account') return true;
   return /^\/polls\/[^/]+\/edit$/.test(p);
 }
 

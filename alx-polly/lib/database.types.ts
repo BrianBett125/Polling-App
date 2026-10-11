@@ -8,6 +8,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type ResultsVisibility = 'always' | 'after_close';
+
 export type Database = {
   public: {
     Tables: {
@@ -19,6 +21,10 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          closes_at: string | null;
+          closed_at: string | null;
+          require_login: boolean;
+          results_visibility: ResultsVisibility;
         };
         Insert: {
           id?: string;
@@ -27,6 +33,10 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          closes_at?: string | null;
+          closed_at?: string | null;
+          require_login?: boolean;
+          results_visibility?: ResultsVisibility;
         };
         Update: {
           id?: string;
@@ -35,6 +45,10 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          closes_at?: string | null;
+          closed_at?: string | null;
+          require_login?: boolean;
+          results_visibility?: ResultsVisibility;
         };
         Relationships: [];
       };
@@ -115,12 +129,15 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           total_votes: number;
+          closes_at: string | null;
+          closed_at: string | null;
+          require_login: boolean;
         };
         Relationships: [];
       };
     };
     Functions: {
-      /** Server-only (service role). Errors carry codes VT001..VT004, see lib/vote-errors.ts. */
+      /** Server-only (service role). Errors carry codes VT001..VT004, VT009, VT010, see lib/vote-errors.ts. */
       cast_vote: {
         Args: {
           p_poll_id: string;
@@ -130,14 +147,32 @@ export type Database = {
         };
         Returns: string;
       };
-      /** Signed-in users only. Errors carry codes VT005..VT007. */
+      /** Signed-in users only. Errors carry codes VT005..VT007 and VT012. */
       create_poll_with_options: {
         Args: {
           p_title: string;
           p_description: string | null;
           p_options: string[];
+          p_closes_at?: string | null;
+          p_require_login?: boolean;
+          p_results_visibility?: ResultsVisibility;
         };
         Returns: string;
+      };
+      /** Anyone with the link. Returns null for an unknown poll. See lib/poll-view.ts for the shape. */
+      get_poll: {
+        Args: { p_poll_id: string };
+        Returns: Json;
+      };
+      /** Owner only, and only while the poll has no votes. Errors VT005, VT007, VT008, VT011. */
+      replace_poll_options: {
+        Args: { p_poll_id: string; p_options: string[] };
+        Returns: undefined;
+      };
+      /** Server-only (service role). True while within the limit. */
+      check_rate_limit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number };
+        Returns: boolean;
       };
     };
     Enums: {};
