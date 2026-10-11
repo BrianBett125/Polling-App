@@ -7,7 +7,7 @@ What the app reports, where it goes, and how to switch it on or off.
 | Signal | Tool | Default | Switch |
 | --- | --- | --- | --- |
 | Errors (server, edge, browser) | Sentry (`@sentry/nextjs` 10.76.2) | Off | Set `NEXT_PUBLIC_SENTRY_DSN` |
-| Page views, web vitals | Vercel Web Analytics (`@vercel/analytics`) | On when deployed on Vercel and Web Analytics is enabled for the project | Enable or disable in the Vercel dashboard |
+| Page views, web vitals | Vercel Web Analytics (`@vercel/analytics`) | Off until `NEXT_PUBLIC_VERCEL_ANALYTICS=1` and Web Analytics is enabled for the project | Enable or disable in the Vercel dashboard |
 | Uptime | `GET /api/health` | Always on | Point an uptime monitor at it |
 
 ## Sentry
@@ -57,8 +57,11 @@ builds and deploys without any Sentry credentials, and enabling upload is a one-
 
 ## Vercel Analytics
 
-`<Analytics />` is rendered in `app/layout.tsx`. Outside Vercel, or with Web Analytics disabled, it does nothing useful and
-makes no calls that affect the app. It collects page views and referrers without cookies.
+`<Analytics />` is rendered in `app/layout.tsx` only when `NEXT_PUBLIC_VERCEL_ANALYTICS=1` is set at build time. It is opt-in
+because on a project where Web Analytics is not enabled, Vercel answers its script URL (`/_vercel/insights/script.js`) with an
+HTML 404 page, which shows up as a console error on every page (the live e2e run caught this). To turn it on: enable Web
+Analytics in the Vercel dashboard (project, Analytics tab), set `NEXT_PUBLIC_VERCEL_ANALYTICS=1` for Production, redeploy.
+It collects page views and referrers without cookies.
 
 ## Health check
 

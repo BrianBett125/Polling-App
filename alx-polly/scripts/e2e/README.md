@@ -12,7 +12,7 @@ A real browser walks the deployed app through its whole life cycle and cleans up
 6. Reloads: the vote form is gone, the vote is still shown.
 7. A second fresh context votes Beta: results show 50% / 50%; the first voter still sees "Your vote" on Alpha.
 8. The owner edits the title.
-9. The owner deletes the poll; the poll URL now answers HTTP 404 with "Poll not found" for the owner and for an anonymous visitor.
+9. The owner deletes the poll; the poll URL now shows "not found" (HTTP 200 or 404; the page streams, so 200 is expected) for the owner and for an anonymous visitor.
 10. Always, in `finally`: deletes any polls left for the user, then the user, then checks both are gone. If that check fails the run exits 3 and prints the user id to clean up by hand.
 
 Selectors use labels, roles and visible text (`Email`, `Password`, `Sign In`, `Create Poll`, `Submit vote`, `Save`, `Delete`, progress bar names such as `Alpha: 50% of votes`), not CSS classes.
