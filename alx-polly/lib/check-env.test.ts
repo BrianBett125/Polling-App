@@ -6,7 +6,7 @@ const { checkEnv } = require('../scripts/check-env.js');
 
 const script = path.join(__dirname, '..', 'scripts', 'check-env.js');
 const run = (env: Record<string, string>) =>
-  spawnSync(process.execPath, [script], { env: { PATH: process.env.PATH ?? '', ...env }, encoding: 'utf8' });
+  spawnSync(process.execPath, [script], { env: { PATH: process.env.PATH ?? '', ...env } as unknown as NodeJS.ProcessEnv, encoding: 'utf8' });
 
 describe('checkEnv', () => {
   it('lists what is missing', () => {

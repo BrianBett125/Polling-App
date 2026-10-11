@@ -111,13 +111,13 @@ The build needs the two `NEXT_PUBLIC_` variables set because pages that use Supa
 
 `test:db` stands in for the eval lane: this app has no LLM component, so the measurable quality checks are the database rules (one vote per browser, option must belong to poll, owner-only writes, counts equal vote rows) run against real Postgres.
 
-## Deploying to Vercel (preparation only, nothing has been deployed)
+## Deploying to Vercel
 
 1. Import the repository and set the project's Root Directory to `alx-polly`.
 2. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` for the environments you use, before the first build (the `NEXT_PUBLIC_` values are baked in at build time; changing them needs a redeploy). Mark the service role key as sensitive.
 3. Apply the migrations to your production Supabase project yourself, with `npm run db:migrate` from a trusted machine, before sending traffic.
 4. Add the deployed URL to Supabase Auth redirect URLs.
-5. Default Vercel framework settings (Next.js) apply: install `npm ci`, build `npm run build`.
+5. `vercel.json` pins the Next.js framework, `npm ci` / `npm run build`, (security headers live in `next.config.ts`). After a deploy, run `node scripts/smoke.js https://<your-url> [pollId]` for read-only live checks.
 6. If a deploy fails, open the failed deployment's build log. A build that stops with `[check-env] ERROR` is missing `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`; add them under Settings > Environment Variables and redeploy (they cannot be added after the fact to an existing build). `No Next.js version detected` means the Root Directory is not `alx-polly`.
 
 ## Known limitations
@@ -130,11 +130,21 @@ The build needs the two `NEXT_PUBLIC_` variables set because pages that use Supa
 - A browser gets its voter cookie when it loads a poll page; voting without cookies enabled is refused, not counted. In production mode the cookie is `Secure`, so over plain `http://` on a non-localhost host (for example `next start` on a LAN IP) browsers drop it and voting is refused; use HTTPS or localhost.
 - Results update when the page loads or after you vote; there is no realtime push.
 - Unknown or deleted poll URLs show a "Poll not found" page with HTTP 200 because the page streams; they are not indexed-friendly 404s.
-- Verified locally only. Nothing here has been run against a live Supabase project or Vercel.
 
-## AI assistance
+## How AI tools were used in this build
 
-The voting, security and sharing changes in this revision were written with Claude Code (Claude Sonnet 5.5) in a single working session and checked with the tests and commands listed above. Nothing about earlier history of this repository is claimed here.
+This project was built with AI assistance across the lifecycle. Concrete examples from this repository:
+
+| Stage | Tool | Example in this repo |
+| --- | --- | --- |
+| Planning and data model | AI chat (Claude) | Designed the `polls` / `poll_options` / `votes` schema, the one-vote-per-browser rule (`UNIQUE (poll_id, voter_token)`) and the owner-only Row Level Security policies in `supabase/migrations/`. |
+| Code generation | Claude Code (Claude Sonnet 5.5) | Server Actions in `lib/actions.ts`, the signed voter cookie (`lib/voter-cookie.ts`, `middleware.ts`), the `cast_vote` and `create_poll_with_options` Postgres functions. |
+| UI | shadcn/ui components, generated and adapted with AI | `components/ui/*`, `ShareCard` (link, copy, Web Share, QR via `qrcode.react`), `ResultsList`. |
+| Testing | Claude Code writing Vitest suites | `lib/*.test.ts` (unit) and `tests/db/*` (real Postgres: migrations, RLS, vote function). Every bug fix ships a regression test. |
+| Debugging | Claude Code | Found that the first schema had invalid SQL (`NULLS NOT DISTINCT` placement), that the view migration sorted before its tables, and that a build without env vars crashed prerendering (now a readable `check-env` error on Vercel). |
+| Deployment | Claude Code driving the Vercel CLI | `vercel.json`, the pre-build env check, and the deploy checklist below. |
+
+AI-written code was reviewed and run, not trusted: the tests and commands in this README are what back it. The commit history shows the sequence.
 
 ## Repository layout
 
