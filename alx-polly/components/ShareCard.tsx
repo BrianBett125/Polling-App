@@ -76,7 +76,7 @@ function svgToPngBlob(markup: string, px: number): Promise<Blob> {
  * origin the page was actually loaded from, so it is correct on localhost, preview
  * deployments and production alike, and no domain is hardcoded.
  */
-export function ShareCard({ path, title }: { path: string; title: string }) {
+export function ShareCard({ path, title, quiet = false }: { path: string; title: string; quiet?: boolean }) {
   const [url, setUrl] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [canShare, setCanShare] = useState(false);
@@ -125,17 +125,24 @@ export function ShareCard({ path, title }: { path: string; title: string }) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="bg-brand relative px-6 pb-16 pt-6 text-white">
-        <div aria-hidden="true" className="absolute inset-0 opacity-25" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.55) 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
-        <h2 className="relative text-xl font-extrabold leading-tight">Share this poll</h2>
-        <p className="relative mt-1 text-sm text-white/90">Scan the code or send the link.</p>
-      </div>
-      <CardContent className="-mt-12 space-y-4">
-        <div ref={qrRef} className="relative mx-auto w-fit rounded-2xl border border-border/60 bg-white p-4 shadow-lift">
+      {quiet ? (
+        <div className="px-6 pt-6">
+          <h2 className="text-lg font-bold leading-tight">Share this poll</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Know someone who should vote? Send them the link.</p>
+        </div>
+      ) : (
+        <div className="bg-brand relative px-6 pb-16 pt-6 text-white">
+          <div aria-hidden="true" className="absolute inset-0 opacity-25" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.55) 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
+          <h2 className="relative text-xl font-extrabold leading-tight">Share this poll</h2>
+          <p className="relative mt-1 text-sm text-white/90">Scan the code or send the link.</p>
+        </div>
+      )}
+      <CardContent className={`space-y-4 ${quiet ? "pt-5" : "-mt-12"}`}>
+        <div ref={qrRef} className={`relative mx-auto w-fit rounded-2xl border border-border/60 bg-white ${quiet ? "p-3 shadow-sm" : "p-4 shadow-lift"}`}>
           {url ? (
-            <QRCodeSVG value={url} size={168} marginSize={0} fgColor="#1e1b4b" bgColor="#ffffff" title={`QR code for ${title}`} role="img" aria-label="QR code linking to this poll" />
+            <QRCodeSVG value={url} size={quiet ? 132 : 168} marginSize={0} fgColor="#1e1b4b" bgColor="#ffffff" title={`QR code for ${title}`} role="img" aria-label="QR code linking to this poll" />
           ) : (
-            <div className="size-[168px] animate-pulse rounded bg-muted" aria-hidden="true" />
+            <div className={`animate-pulse rounded bg-muted ${quiet ? "size-[132px]" : "size-[168px]"}`} aria-hidden="true" />
           )}
         </div>
 

@@ -53,7 +53,7 @@ export default function Home() {
   const siteUrl = resolveSiteUrl();
 
   return (
-    <div className="space-y-24 sm:space-y-32">
+    <div className="space-y-24 overflow-x-clip sm:space-y-32">
       {/* Hero */}
       <section className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8">
         <div className="animate-fade-up">
@@ -124,7 +124,7 @@ export default function Home() {
             </ul>
           </div>
           <div
-            className="animate-float absolute -bottom-7 -right-2 flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 shadow-lift sm:-right-6"
+            className="animate-float absolute -bottom-7 right-0 flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 shadow-lift sm:-right-6"
             style={{ '--r': '-4deg' } as React.CSSProperties}
           >
             <HeroQr value={siteUrl} />

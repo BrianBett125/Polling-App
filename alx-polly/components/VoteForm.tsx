@@ -98,7 +98,7 @@ export function VoteForm({
             <span className="min-w-0 flex-1 break-words text-[17px] font-semibold leading-snug">{option.text}</span>
             <span
               aria-hidden="true"
-              className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-input text-transparent transition-all peer-checked:animate-pop peer-checked:border-transparent peer-checked:bg-brand peer-checked:text-white"
+              className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-muted-foreground/60 text-transparent transition-all peer-checked:animate-pop peer-checked:border-transparent peer-checked:bg-brand peer-checked:text-white"
             >
               <Check className="size-4" strokeWidth={3} />
             </span>
@@ -119,7 +119,7 @@ export function VoteForm({
         <Button
           type="submit"
           size="lg"
-          className="w-full disabled:bg-none disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none"
+          className="w-full disabled:border disabled:border-input disabled:bg-none disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none"
           disabled={!canSubmit({ selected, pending, captchaRequired: captchaEnabled, token })}
         >
           {pending ? 'Submitting…' : 'Submit vote'}

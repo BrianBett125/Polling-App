@@ -122,7 +122,7 @@ export default function AuthPage() {
               />
               {isLogin && (
                 <div className="text-right">
-                  <Link href="/auth/forgot" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                  <Link href="/auth/forgot" className="text-sm font-semibold text-primary underline-offset-4 hover:underline">
                     Forgot password?
                   </Link>
                 </div>

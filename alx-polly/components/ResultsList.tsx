@@ -93,7 +93,7 @@ export function ResultsList({ options, yourOptionId, closed = false }: ResultsLi
                 aria-valuenow={row.percent}
               >
                 <div
-                  className={`animate-bar h-full rounded-full ${leading || mine ? 'bg-brand' : 'bg-primary/55 dark:bg-primary/70'}`}
+                  className={`animate-bar h-full rounded-full ${leading || mine ? 'bg-brand' : 'bg-primary/65 dark:bg-primary/70'}`}
                   style={{ width: `${row.percent}%`, '--delay': `${0.15 + i * 0.07}s` } as React.CSSProperties}
                 />
               </div>

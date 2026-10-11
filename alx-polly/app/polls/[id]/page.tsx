@@ -163,7 +163,7 @@ export default async function PollDetailPage({ params }: { params: Promise<{ id:
         </div>
 
         <aside aria-label="Share" className="animate-fade-up lg:sticky lg:top-24" style={{ '--delay': '0.14s' } as React.CSSProperties}>
-          <ShareCard path={`/polls/${poll.id}`} title={poll.title} />
+          <ShareCard path={`/polls/${poll.id}`} title={poll.title} quiet={!poll.is_owner} />
         </aside>
       </div>
     </div>

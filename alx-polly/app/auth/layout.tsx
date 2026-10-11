@@ -36,7 +36,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           ))}
         </ul>
       </aside>
-      <div className="flex items-center">
+      <div className="flex items-start">
         <div className="animate-fade-up w-full">{children}</div>
       </div>
     </div>

@@ -51,7 +51,7 @@ export function PollSettingsFields({
           name="require_login"
           type="checkbox"
           defaultChecked={defaults.requireLogin}
-          className="mt-0.5 size-5 shrink-0 cursor-pointer rounded accent-[hsl(var(--primary))]"
+          className="mt-0.5 size-5 shrink-0 cursor-pointer appearance-none rounded-md border-2 border-muted-foreground/60 bg-card transition-colors checked:border-transparent checked:bg-brand checked:bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22 fill=%22none%22 stroke=%22white%22 stroke-width=%223%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><path d=%22M5 10.5l3.2 3.2L15 6.8%22/></svg>')] checked:bg-center checked:bg-no-repeat"
           aria-describedby="require_login_help"
         />
         <div>
