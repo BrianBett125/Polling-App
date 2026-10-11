@@ -160,7 +160,7 @@ export default async function PollsPage({
                   <Card className="animate-fade-up flex flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
                     <div aria-hidden="true" className={`h-1.5 w-full ${badges.some((b) => b.key === 'closed') ? 'bg-amber-400' : 'bg-brand'}`} />
                     <CardHeader>
-                      <h2 className="line-clamp-2 break-words text-xl font-bold leading-snug tracking-tight">{poll.title}</h2>
+                      <h2 className="line-clamp-2 min-h-[3.25rem] break-words text-xl font-bold leading-snug tracking-tight">{poll.title}</h2>
                       <ul className="flex list-none flex-wrap gap-1.5 p-0 pt-1" aria-label="Poll status">
                           {!badges.some((b) => b.key === 'closed') && (
                             <li className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-success-soft px-2 py-0.5 text-xs font-medium text-success">

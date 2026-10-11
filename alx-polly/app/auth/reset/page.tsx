@@ -42,13 +42,13 @@ export default function ResetPasswordPage() {
   };
 
   if (isLoading) {
-    return <div className="max-w-md mx-auto py-8 text-sm text-muted-foreground">Checking your reset link...</div>;
+    return <div className="max-w-md mx-auto lg:max-w-none text-sm text-muted-foreground">Checking your reset link...</div>;
   }
 
   // No session means the link was never opened, has expired, or was already used.
   if (!session) {
     return (
-      <div className="max-w-md mx-auto py-8">
+      <div className="max-w-md mx-auto lg:max-w-none">
         <Card>
           <CardHeader>
             <CardTitle as="h1">Link expired</CardTitle>
@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto py-8">
+    <div className="max-w-md mx-auto lg:max-w-none">
       <Card>
         <CardHeader>
           <CardTitle as="h1">Choose a new password</CardTitle>

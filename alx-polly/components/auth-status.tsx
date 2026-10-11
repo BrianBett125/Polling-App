@@ -31,7 +31,7 @@ export function AuthStatus() {
           <span aria-hidden="true" className="bg-brand flex size-8 items-center justify-center rounded-full text-xs font-bold text-white">
             {initial}
           </span>
-          <span className="hidden max-w-[11rem] truncate text-muted-foreground group-hover:text-foreground md:block">
+          <span className="hidden max-w-[16rem] truncate text-muted-foreground group-hover:text-foreground md:block">
             <span className="sr-only">Signed in as </span>
             {user.email}
           </span>

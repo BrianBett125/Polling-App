@@ -40,6 +40,7 @@ export function ResultsList({ options, yourOptionId, closed = false }: ResultsLi
   }
 
   const top = Math.max(...rows.map((r) => r.votes));
+  const tied = rows.filter((r) => r.votes === top).length > 1;
 
   return (
     <div className="space-y-5">
@@ -67,8 +68,8 @@ export function ResultsList({ options, yourOptionId, closed = false }: ResultsLi
                   <p className="break-words font-semibold leading-snug">{row.text}</p>
                   {leading && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
-                      {closed ? <Trophy className="size-3" aria-hidden="true" /> : <Crown className="size-3" aria-hidden="true" />}
-                      {closed ? 'Winner' : 'Leading'}
+                      {closed && !tied ? <Trophy className="size-3" aria-hidden="true" /> : <Crown className="size-3" aria-hidden="true" />}
+                      {tied ? 'Tied' : closed ? 'Winner' : 'Leading'}
                     </span>
                   )}
                   {mine && (

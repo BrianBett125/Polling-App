@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Check, LogIn } from 'lucide-react';
@@ -34,6 +34,10 @@ export function VoteForm({
   const [token, setToken] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
   const router = useRouter();
+  // The refresh that swaps the form for "Your vote is in" is occasionally dropped when it races another
+  // update. Retry while this form is still on screen; the timers die with the form once the page updates.
+  const retryTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => retryTimers.current.forEach(clearTimeout), []);
 
   if (requireLogin && !signedIn) {
     return (
@@ -60,7 +64,10 @@ export function VoteForm({
       const outcome = outcomeOf(result);
       if (outcome.message) setError(outcome.message);
       // Re-render the server component: it now knows this browser voted, or that the poll closed.
-      if (outcome.refresh) router.refresh();
+      if (outcome.refresh) {
+        router.refresh();
+        retryTimers.current = [1500, 3500].map((ms) => setTimeout(() => router.refresh(), ms));
+      }
       if (outcome.resetCaptcha) setResetKey((k) => k + 1);
     } catch {
       setError('Could not reach the server. Check your connection and try again.');

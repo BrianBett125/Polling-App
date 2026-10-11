@@ -95,7 +95,7 @@ export default function Home() {
         {/* Product mock-up */}
         <div className="relative mx-auto w-full max-w-md animate-fade-up lg:max-w-none" style={{ '--delay': '0.15s' } as React.CSSProperties} aria-hidden="true">
           <div className="bg-brand absolute -inset-4 -z-10 rotate-3 rounded-[2rem] opacity-20 blur-2xl dark:opacity-45" />
-          <div className="rounded-3xl border border-border/70 bg-card p-6 pb-24 shadow-lift sm:p-8 sm:pb-24">
+          <div className="rounded-3xl border border-border/70 bg-card p-6 pb-24 shadow-lift sm:p-8 sm:pb-20">
             <div className="mb-1 flex items-center justify-between gap-3">
               <span className="rounded-full bg-success-soft px-2.5 py-1 text-xs font-semibold text-success">Open</span>
               <span className="text-xs text-muted-foreground">128 votes</span>
@@ -124,7 +124,7 @@ export default function Home() {
             </ul>
           </div>
           <div
-            className="animate-float absolute -bottom-7 right-0 flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 shadow-lift sm:-right-6"
+            className="animate-float absolute -bottom-7 right-0 flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-3 shadow-lift"
             style={{ '--r': '-4deg' } as React.CSSProperties}
           >
             <HeroQr value={siteUrl} />
