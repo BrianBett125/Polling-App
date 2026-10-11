@@ -107,6 +107,17 @@ async function main() {
   }
 
   const pages = {};
+  // Browser-side problems seen on any page: CSP violations and uncaught errors fail the run.
+  const browserProblems = [];
+  function watch(page) {
+    page.on('console', (m) => {
+      const t = m.text();
+      if (m.type() === 'error' && /content security policy|refused to (load|execute|connect|apply)/i.test(t)) {
+        browserProblems.push(`CSP: ${t.slice(0, 200)}`);
+      }
+    });
+    page.on('pageerror', (e) => browserProblems.push(`pageerror: ${String(e.message).slice(0, 200)}`));
+  }
   async function screenshotAll(stepName) {
     fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
     for (const [who, page] of Object.entries(pages)) {
@@ -143,6 +154,7 @@ async function main() {
       ownerCtx = await browser.newContext(ctxOpts);
       ownerCtx.setDefaultTimeout(STEP_TIMEOUT);
       owner = await ownerCtx.newPage();
+      watch(owner);
       pages.owner = owner;
     });
 
@@ -160,7 +172,7 @@ async function main() {
       await owner.getByLabel('Title').fill(throwaway.pollTitle);
       await owner.getByPlaceholder('Option 1').fill('Alpha');
       await owner.getByPlaceholder('Option 2').fill('Beta');
-      await owner.getByRole('button', { name: 'Create Poll' }).click();
+      await owner.getByRole('button', { name: /^create poll$/i }).click();
       await owner.waitForURL((u) => !!h.pollIdFromUrl(u.href));
       pollId = h.pollIdFromUrl(owner.url());
       url = h.pollUrl(new URL(owner.url()).origin, pollId);
@@ -187,6 +199,7 @@ async function main() {
       const ctx = await browser.newContext(ctxOpts);
       ctx.setDefaultTimeout(STEP_TIMEOUT);
       const page = await ctx.newPage();
+      watch(page);
       pages[who] = page;
       await page.goto(url, { waitUntil: 'networkidle' });
       return { ctx, page };
@@ -251,12 +264,16 @@ async function main() {
       await owner.locator(`a[href="/polls/${pollId}"]`).waitFor({ state: 'detached' });
     });
 
-    await step('the deleted poll URL shows "Poll not found" (HTTP 404) to the owner and to an anonymous visitor', async () => {
+    await step('the deleted poll URL shows "Poll not found" to the owner and to an anonymous visitor', async () => {
       for (const [who, page] of [['owner', owner], ['anonymous', b.page]]) {
         const res = await page.goto(url, { waitUntil: 'networkidle' });
-        if (res.status() !== 404) throw new Error(`${who}: expected HTTP 404, got ${res.status()}`);
-        await page.getByRole('heading', { name: 'Poll not found' }).waitFor({ state: 'visible' });
+        if (![200, 404].includes(res.status())) throw new Error(`${who}: expected HTTP 200 or 404 (the page streams, so 200 is documented), got ${res.status()}`);
+        await page.getByRole('heading', { name: /not found/i }).waitFor({ state: 'visible' });
       }
+    });
+
+    await step('no CSP violations or uncaught page errors in any browser context', async () => {
+      if (browserProblems.length) throw new Error(`${browserProblems.length} problem(s): ${[...new Set(browserProblems)].slice(0, 5).join(' | ')}`);
     });
   } finally {
     // Always runs: close the browser, delete the user's polls (the votes cascade), then the user.

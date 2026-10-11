@@ -20,7 +20,7 @@ Signed-in users create polls and manage their own. Anyone with a poll's link can
 
 **Safety and operations**
 - Cloudflare Turnstile on voting and sign-up, off until you set its keys. Database-backed rate limits on voting, poll creation and account deletion.
-- Content-Security-Policy, HSTS and other security headers. Friendly error pages. Optional Sentry error reporting and Vercel Analytics. `/api/health` for uptime checks.
+- Content-Security-Policy, HSTS and other security headers. Friendly error pages. Optional Sentry error reporting and Vercel Analytics (both off until configured). `/api/health` for uptime checks.
 - Light, dark and system themes, skip link, labelled forms, axe-checked pages.
 - GitHub Actions CI, a post-deploy smoke script, a live browser end-to-end script and a backup script.
 
@@ -67,6 +67,7 @@ Create `alx-polly/.env.local` (see `.env.example`; never commit real values):
 | `TURNSTILE_SECRET_KEY` | app (server only) | Optional. Verifies Turnstile tokens on votes. Put the same secret in Supabase > Authentication > Bot and Abuse Protection for sign-up. |
 | `NEXT_PUBLIC_SENTRY_DSN` | app (browser and server) | Optional. Enables Sentry. Unset means the Sentry SDK is left out of the build and nothing is sent. See `docs/OBSERVABILITY.md`. |
 | `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | app | Optional, default 0.1. |
+| `NEXT_PUBLIC_VERCEL_ANALYTICS` | app (browser) | Optional. Set to `1` after enabling Web Analytics in Vercel to load its script. See `docs/OBSERVABILITY.md`. |
 | `NEXT_PUBLIC_SITE_URL` | app | Optional. Canonical site URL for link previews (falls back to the Vercel production URL). |
 | `SUPABASE_DB_URL` | `npm run db:migrate` only | Direct Postgres connection string from the Supabase dashboard. Not needed at runtime. |
 | `TEST_DATABASE_URL` | `npm run test:db` only | Admin connection to a throwaway Postgres. Never point it at a real project. |

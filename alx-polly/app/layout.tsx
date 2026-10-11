@@ -68,7 +68,7 @@ export default function RootLayout({
           <PollCreatedToast />
         </Suspense>
         </AuthProvider>
-        <Analytics />
+        {process.env.NEXT_PUBLIC_VERCEL_ANALYTICS === "1" && <Analytics />}
       </body>
     </html>
   );
