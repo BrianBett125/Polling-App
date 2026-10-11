@@ -1,10 +1,12 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { LiveRefresh } from '@/components/LiveRefresh';
+import { LocalTime } from '@/components/LocalTime';
+import { PollAdminBar } from '@/components/PollAdminBar';
 import { ResultsList } from '@/components/ResultsList';
 import { ShareCard } from '@/components/ShareCard';
 import { VoteForm } from '@/components/VoteForm';
+import { getPublicPoll, optionsForResults } from '@/lib/poll-view';
 import { isUuid } from '@/lib/route-protection';
 import { getComponentSupabase } from '@/lib/supabase-server';
 import { getVoteStatus } from '@/lib/vote-status';
@@ -17,11 +19,12 @@ export default async function PollDetailPage({ params }: { params: Promise<{ id:
   if (!isUuid(id)) notFound();
 
   const supabase = await getComponentSupabase();
-  const { data: poll, error } = await supabase
-    .from('polls')
-    .select('id, title, description, created_by, poll_options ( id, text, votes, position, created_at )')
-    .eq('id', id)
-    .maybeSingle();
+  // get_poll is the only public read path. It withholds vote counts when the owner chose "after close".
+  const [{ poll, error }, userResult, status] = await Promise.all([
+    getPublicPoll(supabase, id),
+    supabase.auth.getUser(),
+    getVoteStatus(id),
+  ]);
 
   if (error) {
     console.error('Error loading poll:', { code: error.code, message: error.message });
@@ -32,29 +35,54 @@ export default async function PollDetailPage({ params }: { params: Promise<{ id:
       </div>
     );
   }
-  // Deleted, never existed, or not visible: all look the same to a visitor.
+  // Deleted or never existed.
   if (!poll) notFound();
 
-  const options = [...(poll.poll_options ?? [])]
-    .sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
-    .map((o) => ({ id: o.id, text: o.text, votes: o.votes }));
+  const user = userResult.data.user;
+  const options = [...poll.options].sort(
+    (a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
+  );
+  const resultOptions = optionsForResults({ ...poll, options });
+  // Counts only exist in the page when they are visible; the hidden case never reaches this sum.
+  const total = poll.results_hidden ? 0 : resultOptions.reduce((sum, o) => sum + o.votes, 0);
+  const closedByTime = poll.is_closed && !poll.closed_at;
+  const closedAt = poll.closed_at ?? poll.closes_at;
 
-  const [status, userResult] = await Promise.all([getVoteStatus(id), supabase.auth.getUser()]);
-  const isOwner = !!userResult.data.user && userResult.data.user.id === poll.created_by;
+  const resultsTitle = poll.results_hidden
+    ? status.hasVoted
+      ? 'Thanks for voting'
+      : 'Results'
+    : poll.is_closed
+      ? 'Final results'
+      : status.hasVoted
+        ? 'Thanks for voting. Results so far'
+        : 'Results';
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-semibold break-words min-w-0">{poll.title}</h1>
-          {isOwner && (
-            <Button variant="outline" size="sm" asChild className="shrink-0">
-              <Link href={`/polls/${poll.id}/edit`}>Edit</Link>
-            </Button>
-          )}
-        </div>
+        <h1 className="text-2xl font-semibold break-words min-w-0">{poll.title}</h1>
         {poll.description && <p className="text-muted-foreground whitespace-pre-line break-words">{poll.description}</p>}
       </div>
+
+      {poll.is_owner && <PollAdminBar pollId={poll.id} isClosed={poll.is_closed} closedByTime={closedByTime} />}
+
+      {poll.is_closed ? (
+        <div role="status" className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950 p-3 text-sm text-amber-900 dark:text-amber-100">
+          <p className="font-medium">Voting closed</p>
+          {closedAt && (
+            <p>
+              Closed <LocalTime iso={closedAt} />
+            </p>
+          )}
+        </div>
+      ) : (
+        poll.closes_at && (
+          <p className="text-sm text-muted-foreground">
+            Closes <LocalTime iso={poll.closes_at} />
+          </p>
+        )
+      )}
 
       {options.length === 0 ? (
         <Card>
@@ -62,23 +90,33 @@ export default async function PollDetailPage({ params }: { params: Promise<{ id:
         </Card>
       ) : (
         <>
-          {!status.hasVoted && (
+          {!poll.is_closed && !status.hasVoted && (
             <Card>
               <CardHeader>
                 <CardTitle>Choose one option</CardTitle>
               </CardHeader>
               <CardContent>
-                <VoteForm pollId={poll.id} options={options.map(({ id, text }) => ({ id, text }))} />
+                <VoteForm
+                  pollId={poll.id}
+                  options={options.map(({ id, text }) => ({ id, text }))}
+                  requireLogin={poll.require_login}
+                  signedIn={!!user}
+                />
               </CardContent>
             </Card>
           )}
 
           <Card>
             <CardHeader>
-              <CardTitle>{status.hasVoted ? 'Thanks for voting. Results so far' : 'Results'}</CardTitle>
+              <CardTitle>{resultsTitle}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <ResultsList options={options} yourOptionId={status.optionId} />
+            <CardContent className="space-y-3">
+              {poll.results_hidden ? (
+                <p className="text-sm text-muted-foreground">Results will be shown when voting closes.</p>
+              ) : (
+                <ResultsList options={resultOptions} yourOptionId={status.optionId} />
+              )}
+              <LiveRefresh enabled={!poll.is_closed} total={total} />
             </CardContent>
           </Card>
         </>

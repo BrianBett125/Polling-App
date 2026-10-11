@@ -26,6 +26,9 @@ export function AuthStatus() {
           <span className="text-muted-foreground mr-1">Signed in as</span>
           <span className="font-medium">{user.email}</span>
         </div>
+        <Link href="/account" className="text-sm underline underline-offset-4 hover:text-foreground">
+          Account
+        </Link>
         <Button variant="outline" size="sm" onClick={handleSignOut}>
           Sign out
         </Button>

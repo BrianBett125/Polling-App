@@ -7,7 +7,9 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { PollSettingsFields } from '@/components/PollSettingsFields';
 import { createPoll } from '@/lib/actions';
+import { localInputToIso } from '@/lib/poll-form';
 
 export default function CreatePollPage() {
   const [options, setOptions] = useState(['', '']);
@@ -31,7 +33,12 @@ export default function CreatePollPage() {
     setOptions(newOptions);
   };
 
-  const handleSubmit = async (formData: FormData) => {
+  // onSubmit instead of a form action: React 19 resets the fields after an action, which would wipe
+  // everything the user typed when the server rejects it (rate limit, validation).
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    const formData = new FormData(e.currentTarget);
     setIsSubmitting(true);
     setError(null);
 
@@ -40,6 +47,25 @@ export default function CreatePollPage() {
       options.forEach((option, index) => {
         formData.set(`option-${index}`, option);
       });
+
+      // The date field is wall-clock time in THIS browser. Convert here, where the user's timezone is known;
+      // the server only ever sees an absolute UTC instant.
+      const local = String(formData.get('closes_at_local') ?? '').trim();
+      formData.delete('closes_at_local');
+      if (local) {
+        const iso = localInputToIso(local);
+        if (!iso) {
+          setError('Enter the closing time as a valid date and time.');
+          setIsSubmitting(false);
+          return;
+        }
+        if (new Date(iso).getTime() <= Date.now()) {
+          setError('The closing time must be in the future.');
+          setIsSubmitting(false);
+          return;
+        }
+        formData.set('closes_at', iso);
+      }
 
       // On success the server action redirects to the new poll, so this only returns on failure.
       const result = await createPoll(formData);
@@ -59,12 +85,12 @@ export default function CreatePollPage() {
         <h1 className="text-2xl font-semibold mb-6">Create a new poll</h1>
         
         {error && (
-          <div role="alert" className="bg-red-50 text-red-600 p-4 rounded-md mb-4">
+          <div role="alert" className="bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 p-4 rounded-md mb-4">
             {error}
           </div>
         )}
         
-        <form action={handleSubmit}>
+        <form onSubmit={handleSubmit}>
           <Card>
             <CardHeader>
               <CardTitle>Poll details</CardTitle>
@@ -129,6 +155,8 @@ export default function CreatePollPage() {
                   Add option
                 </Button>
               </div>
+
+              <PollSettingsFields />
             </CardContent>
             <CardFooter>
               <Button 
@@ -136,7 +164,7 @@ export default function CreatePollPage() {
                 className="w-full" 
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Creating...' : 'Create Poll'}
+                {isSubmitting ? 'Creating...' : 'Create poll'}
               </Button>
             </CardFooter>
           </Card>

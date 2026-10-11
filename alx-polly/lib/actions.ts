@@ -8,6 +8,8 @@ import { getAdminSupabase, getCurrentUser, getServerSupabase } from './supabase-
 import { parsePollEdit, parsePollForm } from './poll-form';
 import { isUuid } from './route-protection';
 import { GENERIC_CREATE_ERROR, GENERIC_VOTE_ERROR, isAlreadyVoted, messageForDbError } from './vote-errors';
+import { RATE_LIMITED_MESSAGE, currentClientIp, withinRateLimit } from './rate-limit';
+import { verifyCaptcha } from './captcha';
 import { VOTER_COOKIE, verifyVoterCookie, voterToken } from './voter';
 
 // Server Actions only: every export in a 'use server' file must be an async action.
@@ -27,7 +29,11 @@ const SIGN_IN_REQUIRED: ActionResult = { success: false, error: 'Please sign in 
  * The cast_vote RPC is executable only by the service role, so the browser cannot
  * call it with a token of its choosing.
  */
-export async function voteForOption(optionId: string, pollId: string): Promise<ActionResult<{ voteId: string }>> {
+export async function voteForOption(
+  optionId: string,
+  pollId: string,
+  captchaToken?: string | null,
+): Promise<ActionResult<{ voteId: string }>> {
   if (!isUuid(optionId) || !isUuid(pollId)) {
     return { success: false, error: 'That poll or option is not valid.' };
   }
@@ -39,6 +45,16 @@ export async function voteForOption(optionId: string, pollId: string): Promise<A
   }
 
   try {
+    // Cheapest checks first. The limiter counts every attempt, including ones the captcha then
+    // rejects, so a script cannot burn our Cloudflare quota for free.
+    const ip = await currentClientIp();
+    if (!(await withinRateLimit('vote', ip))) {
+      return { success: false, error: RATE_LIMITED_MESSAGE, code: 'rate_limited' };
+    }
+    if (!(await verifyCaptcha(captchaToken, ip))) {
+      return { success: false, error: 'Please complete the verification and try again.', code: 'captcha_failed' };
+    }
+
     // The cookie is issued by middleware when the poll page loads. Never minted here:
     // a request without one would get a fresh identity per call, defeating the limit.
     const secret = await verifyVoterCookie((await cookies()).get(VOTER_COOKIE)?.value);
@@ -60,6 +76,15 @@ export async function voteForOption(optionId: string, pollId: string): Promise<A
       if (isAlreadyVoted(error)) {
         revalidatePath(`/polls/${pollId}`);
         return { success: false, error: messageForDbError(error, GENERIC_VOTE_ERROR), code: 'already_voted' };
+      }
+      const dbCode = (error as { code?: string }).code;
+      if (dbCode === 'VT009' || dbCode === 'VT010') {
+        if (dbCode === 'VT009') revalidatePath(`/polls/${pollId}`);
+        return {
+          success: false,
+          error: messageForDbError(error, GENERIC_VOTE_ERROR),
+          code: dbCode === 'VT009' ? 'closed' : 'login_required',
+        };
       }
       console.error('cast_vote failed:', { code: error.code, message: error.message });
       return { success: false, error: messageForDbError(error, GENERIC_VOTE_ERROR) };
@@ -83,10 +108,18 @@ export async function createPoll(formData: FormData): Promise<ActionResult> {
   const user = await getCurrentUser(supabase);
   if (!user) return SIGN_IN_REQUIRED;
 
+  // Budget per account, checked before any write. Fails open if the limiter itself is down.
+  if (!(await withinRateLimit('createPoll', user.id))) {
+    return { success: false, error: RATE_LIMITED_MESSAGE, code: 'rate_limited' };
+  }
+
   const { data, error } = await supabase.rpc('create_poll_with_options', {
     p_title: parsed.value.title,
     p_description: parsed.value.description || null,
     p_options: parsed.value.options,
+    p_closes_at: parsed.value.closesAt,
+    p_require_login: parsed.value.requireLogin,
+    p_results_visibility: parsed.value.resultsVisibility,
   });
 
   if (error || !data) {

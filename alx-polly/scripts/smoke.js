@@ -1,27 +1,65 @@
-// Post-deploy smoke checks. Usage: node scripts/smoke.js https://your-app.vercel.app [pollId]
-// Exits 1 if any check fails. Read-only: it never votes or writes.
-const base = (process.argv[2] || '').replace(/\/$/, '');
-const pollId = process.argv[3];
-if (!base) {
-  console.error('usage: node scripts/smoke.js <base-url> [pollId]');
-  process.exit(2);
+// Post-deploy smoke checks.
+//
+//   node scripts/smoke.js https://your-app.vercel.app [pollId] [--json]
+//   npm run smoke -- https://your-app.vercel.app --json
+//
+// Read-only: it never votes or writes. Exit codes: 0 all checks passed (skips do not count
+// as failures), 1 at least one check failed, 2 bad usage. With --json the only thing printed
+// to stdout is one JSON document, so it can be piped into jq or stored by a monitor:
+//   { base, ok, passed, failed, skipped, total, checks: [{ name, status, detail }] }
+// where status is "pass", "fail" or "skip".
+
+function parseArgs(argv) {
+  const flags = new Set(argv.filter((a) => a.startsWith('--')));
+  const positional = argv.filter((a) => !a.startsWith('--'));
+  return {
+    base: (positional[0] || '').replace(/\/$/, ''),
+    pollId: positional[1],
+    json: flags.has('--json'),
+    unknown: [...flags].filter((f) => f !== '--json'),
+  };
 }
 
-const results = [];
-async function check(name, fn) {
+/** Counts and the overall verdict. A run with zero failures is ok, whatever was skipped. */
+function summarize(base, checks) {
+  const failed = checks.filter((c) => c.status === 'fail').length;
+  const skipped = checks.filter((c) => c.status === 'skip').length;
+  const passed = checks.length - failed - skipped;
+  return { base, ok: failed === 0, passed, failed, skipped, total: checks.length, checks };
+}
+
+/** What /api/health returned, as a check outcome. 404 means the route is not deployed yet: skip. */
+function judgeHealth(status, body) {
+  if (status === 404) return { status: 'skip', detail: '/api/health not deployed (404)' };
+  if (status !== 200) return { status: 'fail', detail: `status ${status}` };
   try {
-    results.push({ name, ok: true, detail: await fn() });
-  } catch (e) {
-    results.push({ name, ok: false, detail: e.message });
+    const parsed = JSON.parse(body);
+    if (parsed && (parsed.ok === false || parsed.status === 'error' || parsed.status === 'down')) {
+      return { status: 'fail', detail: `health reported unhealthy: ${body.slice(0, 200)}` };
+    }
+  } catch {
+    // A non-JSON 200 still proves the route is up.
   }
+  return { status: 'pass', detail: '200' };
 }
-const get = (p) => fetch(base + p, { redirect: 'manual' });
-const must = (cond, msg) => {
-  if (!cond) throw new Error(msg);
-};
-const loc = (r) => r.headers.get('location') || '';
 
-(async () => {
+async function runChecks(base, pollId, fetchImpl = fetch) {
+  const checks = [];
+  async function check(name, fn) {
+    try {
+      const out = await fn();
+      if (out && typeof out === 'object' && out.status) checks.push({ name, status: out.status, detail: String(out.detail ?? '') });
+      else checks.push({ name, status: 'pass', detail: String(out ?? '') });
+    } catch (e) {
+      checks.push({ name, status: 'fail', detail: e.message });
+    }
+  }
+  const get = (p) => fetchImpl(base + p, { redirect: 'manual' });
+  const must = (cond, msg) => {
+    if (!cond) throw new Error(msg);
+  };
+  const loc = (r) => r.headers.get('location') || '';
+
   await check('/ redirects to /polls', async () => {
     const r = await get('/');
     must([307, 308].includes(r.status) && loc(r).endsWith('/polls'), `status ${r.status} location ${loc(r)}`);
@@ -61,6 +99,10 @@ const loc = (r) => r.headers.get('location') || '';
     must(!/service_role/.test(t), 'service_role found in page');
     return 'ok';
   });
+  await check('/api/health reports healthy (skipped when the route is not deployed)', async () => {
+    const r = await get('/api/health');
+    return judgeHealth(r.status, await r.text());
+  });
   if (pollId) {
     await check('public poll page: 200, signed voter cookie, results and share panel', async () => {
       const r = await get(`/polls/${pollId}`);
@@ -72,8 +114,43 @@ const loc = (r) => r.headers.get('location') || '';
       return 'ok';
     });
   }
-  const failed = results.filter((r) => !r.ok).length;
-  for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}  ${r.detail ?? ''}`);
-  console.log(`\n${results.length - failed}/${results.length} passed`);
-  process.exit(failed ? 1 : 0);
-})();
+  return summarize(base, checks);
+}
+
+function formatText(summary) {
+  const label = { pass: 'PASS', fail: 'FAIL', skip: 'SKIP' };
+  const lines = summary.checks.map((c) => `${label[c.status]}  ${c.name}  ${c.detail}`);
+  lines.push('', `${summary.passed}/${summary.total} passed` + (summary.skipped ? `, ${summary.skipped} skipped` : '') + (summary.failed ? `, ${summary.failed} failed` : ''));
+  return lines.join('\n');
+}
+
+async function main(argv = process.argv.slice(2)) {
+  const args = parseArgs(argv);
+  if (!args.base || args.unknown.length) {
+    console.error(args.unknown.length ? `unknown option: ${args.unknown.join(', ')}` : '');
+    console.error('usage: node scripts/smoke.js <base-url> [pollId] [--json]');
+    return 2;
+  }
+  let summary;
+  try {
+    new URL(args.base);
+  } catch {
+    console.error(`not a valid URL: ${args.base}`);
+    return 2;
+  }
+  summary = await runChecks(args.base, args.pollId);
+  console.log(args.json ? JSON.stringify(summary, null, 2) : formatText(summary));
+  return summary.ok ? 0 : 1;
+}
+
+module.exports = { parseArgs, summarize, judgeHealth, runChecks, formatText, main };
+
+if (require.main === module) {
+  main().then(
+    (code) => process.exit(code),
+    (err) => {
+      console.error(err.message);
+      process.exit(1);
+    },
+  );
+}
