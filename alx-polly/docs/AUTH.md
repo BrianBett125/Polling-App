@@ -71,3 +71,11 @@ Deletion is permanent. There is no soft delete or grace period.
 `friendlyAuthError(error)` matches the Supabase error `code` first, then the message, and falls back to
 a generic string, so raw backend text is never shown. Add new cases to `lib/auth-errors.ts` with a test
 in `lib/auth-errors.test.ts`.
+
+## Re-authentication for account deletion
+
+Deleting an account requires a sign-in within the last 15 minutes (`last_sign_in_at`; refreshing a token does not count). Otherwise the page offers "Sign out and sign in again", which returns to `/account`. The typed-email confirmation is still checked on the server.
+
+## Forgot password and rate limits
+
+The page shows an error only for limits that apply to everyone (the project email budget, the per-IP limit). The per-account throttle ("you can only request this after N seconds") is hidden, because it would reveal that an address has an account.

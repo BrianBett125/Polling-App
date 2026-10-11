@@ -76,3 +76,12 @@ Known limits:
 - The build bakes `NEXT_PUBLIC_SUPABASE_URL` into the header. Change it and you must redeploy.
 
 How to verify after a deploy: open a poll in a browser with devtools open, confirm the console shows no "Refused to ..." CSP errors, the Turnstile widget renders, a vote succeeds, and sign-in works. `curl -sI <url>` shows the headers.
+
+## Review hardening notes
+
+- **Client address:** rate limits key on the first `x-forwarded-for` hop. That header is trustworthy on Vercel, which sets it. Behind another proxy that appends to a client-supplied header, a caller can pick their own bucket, so put a proxy in front that overwrites it. When no address is available, the per-client vote limit steps aside instead of putting everyone in one shared bucket; Turnstile and the database rules still apply.
+- **Captcha misconfiguration fails closed:** if `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set but `TURNSTILE_SECRET_KEY` is not, votes are refused and an error is logged, instead of showing a widget nothing checks.
+- **CSP:** `script-src` keeps `unsafe-inline` because Next.js emits inline bootstrap scripts; a nonce-based policy is the follow-up. `connect-src` allows only your exact Supabase project origin when `NEXT_PUBLIC_SUPABASE_URL` is set at build time.
+- **Poll creation** is limited to 10 per hour per account by the app and 30 per hour by a database trigger, so calling the API directly does not skip the cap.
+- **Option guard:** inserts into `poll_options` by anyone other than the poll owner are refused by row-level security before the voting-started check runs, so a stranger cannot probe whether a poll has votes.
+- **Poll ids in responses:** `get_poll` returns the owner's account id only to the owner.
