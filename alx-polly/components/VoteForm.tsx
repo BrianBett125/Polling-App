@@ -11,7 +11,16 @@ type Option = { id: string; text: string };
  * Radio list + submit. "Thank you" is shown only after the server confirms the
  * vote was stored. A duplicate or failure shows its real message and no success.
  */
-export function VoteForm({ pollId, options }: { pollId: string; options: Option[] }) {
+export function VoteForm({
+  pollId,
+  options,
+}: {
+  pollId: string;
+  options: Option[];
+  /** Added for the type only; the VoteForm owner implements the sign-in panel. */
+  requireLogin?: boolean;
+  signedIn?: boolean;
+}) {
   const [selected, setSelected] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
