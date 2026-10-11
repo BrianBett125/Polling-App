@@ -9,7 +9,7 @@ export default function MainNav() {
   ];
 
   return (
-    <nav className={cn("flex items-center gap-6 text-sm font-medium")}> 
+    <nav aria-label="Main" className={cn("flex items-center gap-6 text-sm font-medium")}>
       {items.map((item) => (
         <Link key={item.href} href={item.href} className="text-foreground/80 hover:text-foreground transition-colors">
           {item.label}
