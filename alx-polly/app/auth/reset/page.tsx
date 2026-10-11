@@ -79,7 +79,7 @@ export default function ResetPasswordPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
-              <div role="alert" className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              <div role="alert" className="bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 p-3 rounded-md text-sm">
                 {error}
               </div>
             )}

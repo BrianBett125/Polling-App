@@ -85,7 +85,7 @@ export default function CreatePollPage() {
         <h1 className="text-2xl font-semibold mb-6">Create a new poll</h1>
         
         {error && (
-          <div role="alert" className="bg-red-50 text-red-600 p-4 rounded-md mb-4">
+          <div role="alert" className="bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 p-4 rounded-md mb-4">
             {error}
           </div>
         )}
@@ -164,7 +164,7 @@ export default function CreatePollPage() {
                 className="w-full" 
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Creating...' : 'Create Poll'}
+                {isSubmitting ? 'Creating...' : 'Create poll'}
               </Button>
             </CardFooter>
           </Card>

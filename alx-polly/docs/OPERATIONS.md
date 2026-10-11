@@ -178,7 +178,7 @@ Order matters: **schema first, code second.** The new code may call database fun
 
 ## 5. Uptime monitoring
 
-The robustness release adds `GET /api/health` (written by a separate unit; at the time this document was written the route was not yet in the tree, so read `app/api/health/route.ts` for what it actually checks and returns). `scripts/smoke.js` already calls it: HTTP 200 passes (a JSON body with `ok: false` or `status: "error"` fails), 404 is reported as SKIP because the route is not deployed, anything else fails.
+The app serves `GET /api/health`, which returns `{"ok":true}` with `Cache-Control: no-store`. It does not query the database, so it proves the app is running but cannot detect a Supabase outage; use the smoke script or the e2e run for that. `scripts/smoke.js` already calls it: HTTP 200 passes (a JSON body with `ok: false` or `status: "error"` fails), 404 is reported as SKIP because the route is not deployed, anything else fails.
 
 Free monitor suggestion: UptimeRobot (free plan: 50 monitors, 5-minute interval, email alerts; plan limits unverified, check the current pricing page).
 

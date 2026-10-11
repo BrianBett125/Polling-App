@@ -39,6 +39,10 @@ type SiteEnv = Record<string, string | undefined>;
 export function resolveSiteUrl(env: SiteEnv = process.env): string {
   const candidates = [
     env.NEXT_PUBLIC_SITE_URL?.trim(),
+    // Preview deployments have no production URL variable, but VERCEL_URL is always set on Vercel.
+    env.VERCEL_ENV && env.VERCEL_ENV !== 'production' && env.VERCEL_URL?.trim()
+      ? `https://${env.VERCEL_URL.trim().replace(/^https?:\/\//, '')}`
+      : undefined,
     env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
       ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL!.trim().replace(/^https?:\/\//, '')}`
       : undefined,

@@ -79,3 +79,7 @@ Deleting an account requires a sign-in within the last 15 minutes (`last_sign_in
 ## Forgot password and rate limits
 
 The page shows an error only for limits that apply to everyone (the project email budget, the per-IP limit). The per-account throttle ("you can only request this after N seconds") is hidden, because it would reveal that an address has an account.
+
+## What has and has not been verified
+
+Unit tests cover the forgot, reset and callback logic, and the pages were checked in a headless browser for the "link expired" state. The full round trip (real email, link click, new password, old password rejected) has not been run against a live Supabase project from this repository; try it once after configuring email (see `docs/EMAIL.md`). Reset links use PKCE: opening the link in a different browser or device than the one that requested it cannot complete the exchange and lands on the "link expired" message, so request and open the link in the same browser.

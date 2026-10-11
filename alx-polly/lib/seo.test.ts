@@ -50,6 +50,8 @@ describe('resolveSiteUrl', () => {
   });
   it('uses the Vercel production host with https', () => {
     expect(resolveSiteUrl({ VERCEL_PROJECT_PRODUCTION_URL: 'alx-polly.vercel.app' })).toBe('https://alx-polly.vercel.app');
+    expect(resolveSiteUrl({ VERCEL_ENV: 'preview', VERCEL_URL: 'alx-git-x.vercel.app', VERCEL_PROJECT_PRODUCTION_URL: 'alx-polly.vercel.app' })).toBe('https://alx-git-x.vercel.app');
+    expect(resolveSiteUrl({ VERCEL_ENV: 'production', VERCEL_URL: 'alx-abc.vercel.app', VERCEL_PROJECT_PRODUCTION_URL: 'alx-polly.vercel.app' })).toBe('https://alx-polly.vercel.app');
     expect(resolveSiteUrl({ VERCEL_PROJECT_PRODUCTION_URL: 'http://alx-polly.vercel.app' })).toBe('https://alx-polly.vercel.app');
   });
   it('falls back to localhost when nothing usable is set', () => {

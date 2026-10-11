@@ -64,3 +64,7 @@ makes no calls that affect the app. It collects page views and referrers without
 
 `GET /api/health` returns `{"ok":true}` with `Cache-Control: no-store`. It does not touch the database, so it answers
 "is the app serving", not "is Supabase up". Requests still pass through the middleware like every other route.
+
+## Verified bundle behaviour
+
+Checked by building twice and searching `.next/static/chunks` for Sentry code (`captureException`, `ingest.sentry`): with no `NEXT_PUBLIC_SENTRY_DSN` no chunk contains it; with a DSN the SDK is a lazily loaded chunk and the shared first-load JS is unchanged (about 104 kB). This relies on `next.config.ts` defining the variable at build time and on `instrumentation-client.ts` testing the env expression directly; keep both if you edit them.

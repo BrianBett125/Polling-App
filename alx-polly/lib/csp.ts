@@ -34,6 +34,7 @@ export function buildCsp(env: CspEnv = process.env): string {
     ...(supabase ? [supabase] : ['https://*.supabase.co']),
     'https://*.ingest.sentry.io',
     'https://*.ingest.us.sentry.io',
+    'https://*.ingest.de.sentry.io',
     'https://vitals.vercel-insights.com',
     'https://va.vercel-scripts.com',
     ...(dev ? ['ws://localhost:*', 'ws://127.0.0.1:*'] : []),

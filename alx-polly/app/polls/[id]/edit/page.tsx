@@ -30,8 +30,9 @@ export default async function EditPollPage({ params }: { params: Promise<{ id: s
     const e = error ?? optionsError;
     console.error('Error loading poll for edit:', { code: e?.code, message: e?.message });
     return (
-      <div role="alert" className="max-w-2xl mx-auto rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        We could not load this poll. Reload the page to try again.
+      <div role="alert" className="max-w-2xl mx-auto rounded-md border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950 p-4 text-sm text-red-700 dark:text-red-300">
+        <h1 className="text-base font-semibold">We could not load this poll</h1>
+        <p>Reload the page to try again.</p>
       </div>
     );
   }

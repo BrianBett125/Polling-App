@@ -89,12 +89,12 @@ export default function AuthPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && (
-              <div role="alert" className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              <div role="alert" className="bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 p-3 rounded-md text-sm">
                 {error}
               </div>
             )}
             {notice && (
-              <div role="status" className="bg-green-50 text-green-800 p-3 rounded-md text-sm">
+              <div role="status" className="bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200 p-3 rounded-md text-sm">
                 {notice}
               </div>
             )}

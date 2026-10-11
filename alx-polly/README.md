@@ -65,7 +65,7 @@ Create `alx-polly/.env.local` (see `.env.example`; never commit real values):
 | `VOTER_COOKIE_SECRET` | app (server only) | Optional. Key used to sign voter cookies. Defaults to `SUPABASE_SERVICE_ROLE_KEY`. Changing the key you use (including rotating the service role key when no separate secret is set) invalidates every voter cookie, so everyone can vote once more. Set a separate `VOTER_COOKIE_SECRET` to avoid that coupling. |
 | `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | app (browser) | Optional. Shows the Cloudflare Turnstile widget on voting and sign-up. See `docs/SECURITY.md`. |
 | `TURNSTILE_SECRET_KEY` | app (server only) | Optional. Verifies Turnstile tokens on votes. Put the same secret in Supabase > Authentication > Bot and Abuse Protection for sign-up. |
-| `NEXT_PUBLIC_SENTRY_DSN` | app (browser and server) | Optional. Enables Sentry. Unset means Sentry is not bundled and nothing is sent. See `docs/OBSERVABILITY.md`. |
+| `NEXT_PUBLIC_SENTRY_DSN` | app (browser and server) | Optional. Enables Sentry. Unset means the Sentry SDK is left out of the build and nothing is sent. See `docs/OBSERVABILITY.md`. |
 | `SENTRY_TRACES_SAMPLE_RATE`, `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | app | Optional, default 0.1. |
 | `NEXT_PUBLIC_SITE_URL` | app | Optional. Canonical site URL for link previews (falls back to the Vercel production URL). |
 | `SUPABASE_DB_URL` | `npm run db:migrate` only | Direct Postgres connection string from the Supabase dashboard. Not needed at runtime. |

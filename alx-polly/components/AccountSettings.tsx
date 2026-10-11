@@ -99,12 +99,12 @@ export function AccountSettings({ email }: { email: string }) {
         <form onSubmit={changePassword}>
           <CardContent className="space-y-4">
             {pwError && (
-              <div role="alert" className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              <div role="alert" className="bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 p-3 rounded-md text-sm">
                 {pwError}
               </div>
             )}
             {pwDone && (
-              <div role="status" className="bg-green-50 text-green-800 p-3 rounded-md text-sm">
+              <div role="status" className="bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-200 p-3 rounded-md text-sm">
                 Password updated.
               </div>
             )}
@@ -143,7 +143,7 @@ export function AccountSettings({ email }: { email: string }) {
 
       <Card className="border-red-300">
         <CardHeader>
-          <CardTitle className="text-red-700">Delete account</CardTitle>
+          <CardTitle className="text-red-700 dark:text-red-300">Delete account</CardTitle>
           <CardDescription>
             This permanently deletes your account and every poll you created, along with their options and votes. It
             cannot be undone.
@@ -152,7 +152,7 @@ export function AccountSettings({ email }: { email: string }) {
         <form onSubmit={deleteAccount}>
           <CardContent className="space-y-4">
             {delError && (
-              <div role="alert" className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              <div role="alert" className="bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 p-3 rounded-md text-sm">
                 {delError}
                 {needsReauth && (
                   <Button type="button" variant="outline" size="sm" className="mt-2 block" onClick={signInAgain}>
