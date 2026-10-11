@@ -6,7 +6,6 @@ import { cookies } from 'next/headers';
 import type { ActionResult } from './types/action-result';
 import { getAdminSupabase, getCurrentUser, getServerSupabase } from './supabase-server';
 import { parsePollEdit, parsePollForm } from './poll-form';
-import { RATE_LIMITED_MESSAGE, withinRateLimit } from './rate-limit';
 import { isUuid } from './route-protection';
 import { GENERIC_CREATE_ERROR, GENERIC_VOTE_ERROR, isAlreadyVoted, messageForDbError } from './vote-errors';
 import { RATE_LIMITED_MESSAGE, currentClientIp, withinRateLimit } from './rate-limit';

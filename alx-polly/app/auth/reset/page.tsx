@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
       <div className="max-w-md mx-auto py-8">
         <Card>
           <CardHeader>
-            <CardTitle>Link expired</CardTitle>
+            <CardTitle as="h1">Link expired</CardTitle>
             <CardDescription>
               This password reset link has expired or was already used. Request a new one to continue.
             </CardDescription>
@@ -73,7 +73,7 @@ export default function ResetPasswordPage() {
     <div className="max-w-md mx-auto py-8">
       <Card>
         <CardHeader>
-          <CardTitle>Choose a new password</CardTitle>
+          <CardTitle as="h1">Choose a new password</CardTitle>
           <CardDescription>At least {MIN_PASSWORD_LENGTH} characters.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>

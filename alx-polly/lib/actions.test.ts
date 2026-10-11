@@ -295,14 +295,14 @@ describe('createPoll', () => {
   });
 
   it('rate limits per account BEFORE creating anything', async () => {
-    adminClient.rpc.mockResolvedValue({ data: false, error: null });
+    withinRateLimit.mockResolvedValue(false);
     const res = await createPoll(pollForm());
     expect(res).toEqual({
       success: false,
       error: 'Too many attempts. Please wait a few minutes and try again.',
       code: 'rate_limited',
     });
-    expect(adminClient.rpc).toHaveBeenCalledWith('check_rate_limit', expect.objectContaining({ p_limit: 10, p_window_seconds: 3600 }));
+    expect(withinRateLimit).toHaveBeenCalledWith('createPoll', USER);
     expect(userClient.rpc).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -311,7 +311,7 @@ describe('createPoll', () => {
     userClient.auth.getUser.mockResolvedValue({ data: { user: null } });
     await createPoll(pollForm());
     await createPoll(pollForm({ title: ' ' }));
-    expect(adminClient.rpc).not.toHaveBeenCalled();
+    expect(withinRateLimit).not.toHaveBeenCalled();
   });
 
   it('maps a database rejection of the settings to a friendly message', async () => {

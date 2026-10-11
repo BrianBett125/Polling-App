@@ -49,7 +49,7 @@ export default async function EditPollPage({ params }: { params: Promise<{ id: s
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle>Edit poll</CardTitle>
+          <CardTitle as="h1">Edit poll</CardTitle>
         </CardHeader>
         <CardContent>
           <EditPollForm

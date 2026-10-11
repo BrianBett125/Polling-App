@@ -79,7 +79,7 @@ export default function AuthPage() {
     <div className="max-w-md mx-auto py-8">
       <Card>
         <CardHeader>
-          <CardTitle>{isLogin ? 'Sign In' : 'Sign Up'}</CardTitle>
+          <CardTitle as="h1">{isLogin ? 'Sign In' : 'Sign Up'}</CardTitle>
           <CardDescription>
             {isLogin 
               ? 'Enter your credentials to access your account' 

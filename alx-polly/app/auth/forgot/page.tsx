@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
     <div className="max-w-md mx-auto py-8">
       <Card>
         <CardHeader>
-          <CardTitle>Reset your password</CardTitle>
+          <CardTitle as="h1">Reset your password</CardTitle>
           <CardDescription>Enter your account email and we will send you a link to choose a new password.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
