@@ -16,20 +16,28 @@ export function AuthStatus() {
   };
 
   if (isLoading) {
-    return <div className="text-sm text-muted-foreground">Loading...</div>;
+    // Reserve the space so the header does not jump when the session resolves.
+    return <div className="h-9 w-24 animate-pulse rounded-lg bg-muted" aria-hidden="true" />;
   }
 
   if (user) {
+    const initial = (user.email ?? '?').trim().charAt(0).toUpperCase();
     return (
-      <div className="flex items-center gap-4">
-        <div className="text-sm hidden sm:block">
-          <span className="text-muted-foreground mr-1">Signed in as</span>
-          <span className="font-medium">{user.email}</span>
-        </div>
-        <Link href="/account" className="text-sm underline underline-offset-4 hover:text-foreground">
-          Account
+      <div className="flex items-center gap-2 sm:gap-3">
+        <Link
+          href="/account"
+          className="group flex items-center gap-2 rounded-full border border-border/70 bg-card/70 py-1 pl-1 pr-1 text-sm shadow-sm transition-colors hover:border-primary/40 md:pr-3"
+        >
+          <span aria-hidden="true" className="bg-brand flex size-8 items-center justify-center rounded-full text-xs font-bold text-white">
+            {initial}
+          </span>
+          <span className="hidden max-w-[11rem] truncate text-muted-foreground group-hover:text-foreground md:block">
+            <span className="sr-only">Signed in as </span>
+            {user.email}
+          </span>
+          <span className="sr-only md:hidden">Account</span>
         </Link>
-        <Button variant="outline" size="sm" onClick={handleSignOut}>
+        <Button variant="ghost" size="sm" onClick={handleSignOut}>
           Sign out
         </Button>
       </div>
@@ -37,10 +45,8 @@ export function AuthStatus() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" asChild>
-        <Link href="/auth">Sign in</Link>
-      </Button>
-    </div>
+    <Button size="sm" asChild>
+      <Link href="/auth">Sign in</Link>
+    </Button>
   );
 }

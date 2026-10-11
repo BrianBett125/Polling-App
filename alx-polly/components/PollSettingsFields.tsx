@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -26,8 +27,8 @@ export function PollSettingsFields({
   closingTimeHint?: string;
 }) {
   return (
-    <fieldset className="space-y-4 rounded-md border p-4">
-      <legend className="px-1 text-sm font-medium">Settings</legend>
+    <fieldset className="grid gap-5 rounded-2xl border border-border/70 bg-muted/40 p-5">
+      <legend className="rounded-full bg-secondary px-3 py-1 text-xs font-bold uppercase tracking-wider text-secondary-foreground">Settings</legend>
 
       <div className="space-y-2">
         <Label htmlFor="closes_at_local">Closing date and time (optional)</Label>
@@ -44,18 +45,18 @@ export function PollSettingsFields({
         </p>
       </div>
 
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-card p-4 transition-colors has-[:checked]:border-primary/50 has-[:checked]:bg-accent/50">
         <input
           id="require_login"
           name="require_login"
           type="checkbox"
           defaultChecked={defaults.requireLogin}
-          className="mt-1 size-4"
+          className="mt-0.5 size-5 shrink-0 cursor-pointer rounded accent-[hsl(var(--primary))]"
           aria-describedby="require_login_help"
         />
         <div>
-          <Label htmlFor="require_login">Require sign-in to vote</Label>
-          <p id="require_login_help" className="text-xs text-muted-foreground">
+          <Label htmlFor="require_login" className="cursor-pointer text-[15px]">Require sign-in to vote</Label>
+          <p id="require_login_help" className="mt-1 text-xs text-muted-foreground">
             One vote per account, even across browsers. Visitors can still see the poll without signing in.
           </p>
         </div>
@@ -63,15 +64,18 @@ export function PollSettingsFields({
 
       <div className="space-y-2">
         <Label htmlFor="results_visibility">Results visibility</Label>
+        <div className="relative">
         <select
           id="results_visibility"
           name="results_visibility"
           defaultValue={defaults.resultsVisibility}
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="flex h-11 w-full cursor-pointer appearance-none rounded-xl pr-10 border border-input bg-background/80 px-3.5 py-2 text-sm shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
         >
           <option value="always">Always show results</option>
           <option value="after_close">Only after the poll closes</option>
         </select>
+        <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+        </div>
         <p className="text-xs text-muted-foreground">You always see the results as the owner.</p>
       </div>
     </fieldset>

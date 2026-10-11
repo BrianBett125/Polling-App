@@ -137,7 +137,7 @@ export default function AuthPage() {
             <Button 
               type="button" 
               variant="ghost" 
-              className="w-full" 
+              className="w-full font-semibold text-primary hover:text-primary" 
               onClick={() => {
                 setIsLogin(!isLogin);
                 setError(null);

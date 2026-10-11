@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Copy, Download, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 
 const EXPORT_PX = 1024;
 const QUIET_ZONE_MODULES = 4; // the QR spec's minimum quiet zone
@@ -123,13 +124,23 @@ export function ShareCard({ path, title }: { path: string; title: string }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <h2 className="text-2xl font-semibold leading-none tracking-tight">Share this poll</h2>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="flex-1 min-w-0 space-y-3">
-          <label htmlFor="poll-link" className="text-sm font-medium">
+    <Card className="overflow-hidden">
+      <div className="bg-brand relative px-6 pb-16 pt-6 text-white">
+        <div aria-hidden="true" className="absolute inset-0 opacity-25" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.55) 1px, transparent 1px)', backgroundSize: '16px 16px' }} />
+        <h2 className="relative text-xl font-extrabold leading-tight">Share this poll</h2>
+        <p className="relative mt-1 text-sm text-white/90">Scan the code or send the link.</p>
+      </div>
+      <CardContent className="-mt-12 space-y-4">
+        <div ref={qrRef} className="relative mx-auto w-fit rounded-2xl border border-border/60 bg-white p-4 shadow-lift">
+          {url ? (
+            <QRCodeSVG value={url} size={168} marginSize={0} fgColor="#1e1b4b" bgColor="#ffffff" title={`QR code for ${title}`} role="img" aria-label="QR code linking to this poll" />
+          ) : (
+            <div className="size-[168px] animate-pulse rounded bg-muted" aria-hidden="true" />
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="poll-link" className="text-sm font-semibold">
             Poll link
           </label>
           <input
@@ -139,40 +150,34 @@ export function ShareCard({ path, title }: { path: string; title: string }) {
             value={url}
             placeholder="Loading link…"
             onFocus={(e) => e.currentTarget.select()}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            className="h-11 w-full rounded-xl border border-input bg-muted/60 px-3.5 text-sm text-muted-foreground transition-colors focus:bg-background focus:text-foreground"
           />
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={copy} disabled={!url}>
-              Copy link
+            <Button type="button" onClick={copy} disabled={!url} className="flex-1">
+              <Copy className="size-4" aria-hidden="true" /> Copy link
             </Button>
             {canShare && (
               <Button type="button" variant="outline" onClick={share} disabled={!url}>
-                Share…
+                <Share2 className="size-4" aria-hidden="true" /> Share…
               </Button>
             )}
           </div>
-          <div role="group" aria-label="Download QR code" className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium" aria-hidden="true">
-              Download QR
-            </span>
-            <Button type="button" variant="outline" size="sm" onClick={() => downloadQr('png')} disabled={!url} aria-label="Download QR code as PNG">
-              PNG
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => downloadQr('svg')} disabled={!url} aria-label="Download QR code as SVG">
-              SVG
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground min-h-5" role="status" aria-live="polite">
-            {status}
-          </p>
         </div>
-        <div ref={qrRef} className="shrink-0 self-center rounded-md border bg-white p-3">
-          {url ? (
-            <QRCodeSVG value={url} size={160} marginSize={0} title={`QR code for ${title}`} role="img" aria-label="QR code linking to this poll" />
-          ) : (
-            <div className="h-40 w-40 animate-pulse rounded bg-muted" aria-hidden="true" />
-          )}
+
+        <div role="group" aria-label="Download QR code" className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
+          <span className="text-sm font-semibold" aria-hidden="true">
+            Download QR
+          </span>
+          <Button type="button" variant="outline" size="sm" onClick={() => downloadQr('png')} disabled={!url} aria-label="Download QR code as PNG">
+            <Download className="size-3.5" aria-hidden="true" /> PNG
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => downloadQr('svg')} disabled={!url} aria-label="Download QR code as SVG">
+            <Download className="size-3.5" aria-hidden="true" /> SVG
+          </Button>
         </div>
+        <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
+          {status}
+        </p>
       </CardContent>
     </Card>
   );

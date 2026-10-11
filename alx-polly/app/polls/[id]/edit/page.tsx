@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import EditPollForm from '@/components/EditPollForm';
 import { isUuid } from '@/lib/route-protection';
 import { getComponentSupabase } from '@/lib/supabase-server';
@@ -47,12 +47,13 @@ export default async function EditPollPage({ params }: { params: Promise<{ id: s
   const closedByTime = !!poll.closes_at && new Date(poll.closes_at).getTime() <= Date.now();
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="mx-auto max-w-2xl">
+      <div className="animate-fade-up mb-8">
+        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Edit poll</h1>
+        <p className="mt-2 text-lg text-muted-foreground">Change the wording, the settings, or close it early.</p>
+      </div>
       <Card>
-        <CardHeader>
-          <CardTitle as="h1">Edit poll</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <EditPollForm
             poll={poll}
             options={options.map(({ id, text }) => ({ id, text }))}

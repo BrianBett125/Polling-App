@@ -37,9 +37,9 @@ export function PollAdminBar({
   };
 
   return (
-    <div className="rounded-md border p-3 space-y-2" aria-label="Owner tools" role="group">
+    <div className="space-y-2 rounded-2xl border border-primary/25 bg-accent/40 p-3 shadow-sm" aria-label="Owner tools" role="group">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground mr-1">Owner</span>
+        <span className="mr-1 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-primary-foreground">Owner</span>
         <Button variant="outline" size="sm" asChild>
           <Link href={`/polls/${pollId}/edit`}>Edit</Link>
         </Button>

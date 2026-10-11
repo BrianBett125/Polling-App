@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BarChart3, Plus, Search, SearchX } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
@@ -19,13 +20,14 @@ import {
 export const dynamic = 'force-dynamic';
 
 const COLUMNS = 'id, title, total_votes, created_at, closes_at, closed_at, require_login';
+const createdFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 // PostgREST answers 416 with this code when the requested range starts past the last row.
 const RANGE_NOT_SATISFIABLE = 'PGRST103';
 
 const badgeClass = {
-  closed: 'border-foreground bg-foreground text-background',
-  closes: 'border-border bg-secondary text-secondary-foreground',
-  login: 'border-border bg-secondary text-secondary-foreground',
+  closed: 'border-transparent bg-warning-soft text-warning',
+  closes: 'border-transparent bg-secondary text-secondary-foreground',
+  login: 'border-transparent bg-accent text-accent-foreground',
 } as const;
 
 /**
@@ -77,28 +79,36 @@ export default async function PollsPage({
   const now = new Date();
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">My polls</h1>
-        <Button asChild>
-          <Link href="/polls/new">Create poll</Link>
+    <div className="space-y-8">
+      <div className="animate-fade-up flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">My polls</h1>
+          <p className="mt-2 text-lg text-muted-foreground">Every question you have asked, in one place.</p>
+        </div>
+        <Button size="lg" asChild>
+          <Link href="/polls/new">
+            <Plus className="size-4" aria-hidden="true" /> Create poll
+          </Link>
         </Button>
       </div>
 
       <form action="/polls" method="get" role="search" className="flex flex-wrap items-end gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-1 sm:max-w-sm">
-          <label htmlFor="poll-search" className="text-sm font-medium">
+          <label htmlFor="poll-search" className="text-sm font-semibold">
             Search polls by title
           </label>
-          <input
-            id="poll-search"
-            name="q"
-            type="search"
-            defaultValue={q}
-            maxLength={100}
-            placeholder="Search…"
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <input
+              id="poll-search"
+              name="q"
+              type="search"
+              defaultValue={q}
+              maxLength={100}
+              placeholder="Search…"
+              className="h-11 w-full rounded-xl border border-input bg-card/80 pl-10 pr-3.5 text-sm shadow-sm transition-colors hover:border-primary/40"
+            />
+          </div>
         </div>
         <Button type="submit" variant="secondary">
           Search
@@ -116,16 +126,23 @@ export default async function PollsPage({
         </div>
       ) : !polls || polls.length === 0 ? (
         q ? (
-          <div className="py-10 text-center">
-            <p className="text-muted-foreground">No polls match &quot;{q}&quot;.</p>
+          <div className="rounded-3xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
+            <span className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
+              <SearchX className="size-7" aria-hidden="true" />
+            </span>
+            <p className="text-lg font-semibold">No polls match &quot;{q}&quot;.</p>
             <Button asChild variant="outline" className="mt-4">
               <Link href="/polls">Clear search</Link>
             </Button>
           </div>
         ) : (
-          <div className="py-10 text-center">
-            <p className="text-muted-foreground">You have not created any polls yet.</p>
-            <Button asChild className="mt-4">
+          <div className="rounded-3xl border border-dashed border-border bg-card/50 px-6 py-16 text-center">
+            <span className="bg-brand mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl text-white shadow-soft">
+              <BarChart3 className="size-8" aria-hidden="true" />
+            </span>
+            <p className="font-display text-2xl font-extrabold">Your first poll is one minute away</p>
+            <p className="mx-auto mt-2 max-w-md text-muted-foreground">You have not created any polls yet. Write a question, share the link, and watch the votes come in.</p>
+            <Button asChild size="lg" className="mt-6">
               <Link href="/polls/new">Create your first poll</Link>
             </Button>
           </div>
@@ -135,26 +152,36 @@ export default async function PollsPage({
           <p className="text-sm text-muted-foreground" role="status">
             {q ? `${total} ${total === 1 ? 'poll matches' : 'polls match'} "${q}"` : `${total} ${total === 1 ? 'poll' : 'polls'}`}
           </p>
-          <ul className="grid list-none gap-4 p-0 md:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid list-none gap-5 p-0 md:grid-cols-2 lg:grid-cols-3">
             {polls.map((poll) => {
               const badges = pollBadges(poll, now);
               return (
                 <li key={poll.id} className="contents">
-                  <Card>
+                  <Card className="animate-fade-up flex flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-lift">
+                    <div aria-hidden="true" className={`h-1.5 w-full ${badges.some((b) => b.key === 'closed') ? 'bg-amber-400' : 'bg-brand'}`} />
                     <CardHeader>
-                      <h2 className="line-clamp-2 break-words text-2xl font-semibold leading-none tracking-tight">{poll.title}</h2>
-                      {badges.length > 0 && (
-                        <ul className="flex list-none flex-wrap gap-1.5 p-0 pt-1" aria-label="Poll status">
+                      <h2 className="line-clamp-2 break-words text-xl font-bold leading-snug tracking-tight">{poll.title}</h2>
+                      <ul className="flex list-none flex-wrap gap-1.5 p-0 pt-1" aria-label="Poll status">
+                          {!badges.some((b) => b.key === 'closed') && (
+                            <li className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
+                              <span aria-hidden="true" className="size-1.5 rounded-full bg-success" /> Open
+                            </li>
+                          )}
                           {badges.map((b) => (
                             <li key={b.key} className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badgeClass[b.key]}`}>
                               {b.label}
                             </li>
                           ))}
                         </ul>
-                      )}
+                      <p className="pt-1 text-xs text-muted-foreground">Created {createdFmt.format(new Date(poll.created_at))}</p>
                     </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">{formatVotes(poll.total_votes ?? 0)}</p>
+                    <CardContent className="mt-auto">
+                      <p className="flex items-baseline gap-2">
+                        <span className="font-display text-4xl font-extrabold tabular-nums leading-none" style={{ fontFamily: 'var(--font-bricolage), system-ui, sans-serif' }}>
+                          {poll.total_votes ?? 0}
+                        </span>
+                        <span className="text-sm font-medium text-muted-foreground">{(poll.total_votes ?? 0) === 1 ? 'vote' : 'votes'}</span>
+                      </p>
                     </CardContent>
                     <CardFooter className="flex flex-wrap gap-2">
                       <Button variant="outline" asChild className="flex-1">

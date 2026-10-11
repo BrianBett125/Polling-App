@@ -67,3 +67,13 @@ Skip link takes first focus, is visible, and moves focus to `#main`; one `main` 
 ## Re-running the audit
 
 The unit tests (`npm test`) cover the pure logic. The browser audit is a scratch script, not part of the repo: load axe-core into each page with Playwright and run `axe.run` with the rule tags above, in both themes.
+
+## Redesign audit (axe-core)
+
+After the visual redesign, axe-core was run on every screen in light and dark at 1280px and 390px wide: home, sign in, forgot password, poll (unvoted, option selected, voted), closed poll, login-only poll, not found, dashboard, create, owner view, edit and account (13 screens x 2 themes x 2 widths).
+
+- First pass: 1 serious finding, the Delete button text on the dark dashboard (4.33:1 against the 4.5:1 minimum). Fixed with a lighter red for text in dark mode and a darker solid destructive color.
+- Final pass: 0 violations of any impact on every screen.
+- `lib/design-tokens.test.ts` keeps the token pairs above WCAG minimums on every commit, and `scripts/e2e` fails on any console CSP violation or page error.
+
+Not covered: screen reader testing, forced-colors mode, and zoom to 400 percent.

@@ -21,7 +21,7 @@ Signed-in users create polls and manage their own. Anyone with a poll's link can
 **Safety and operations**
 - Cloudflare Turnstile on voting and sign-up, off until you set its keys. Database-backed rate limits on voting, poll creation and account deletion.
 - Content-Security-Policy, HSTS and other security headers. Friendly error pages. Optional Sentry error reporting and Vercel Analytics (both off until configured). `/api/health` for uptime checks.
-- Light, dark and system themes, skip link, labelled forms, axe-checked pages.
+- A designed look: brand gradient, display type, landing page, animated results, light and dark themes, skip link, labelled forms, axe-checked pages (`docs/DESIGN.md`).
 - GitHub Actions CI, a post-deploy smoke script, a live browser end-to-end script and a backup script.
 
 ## How voting works (and what it does not guarantee)
@@ -150,6 +150,7 @@ The build needs the two `NEXT_PUBLIC_` variables set because pages that use Supa
 | Voting threat model, Turnstile, rate limits, CSP | `docs/SECURITY.md` |
 | Error reporting and analytics | `docs/OBSERVABILITY.md` |
 | Accessibility audit and theme | `docs/ACCESSIBILITY.md` |
+| Design system: colors, type, components, motion | `docs/DESIGN.md` |
 | Custom domain, backups, key rotation, release checklist | `docs/OPERATIONS.md` |
 
 ## Known limitations
@@ -181,7 +182,7 @@ AI-written code was reviewed and run, not trusted: the tests and commands in thi
 
 ## Repository layout
 
-- `app/` routes: `/auth`, `/auth/forgot`, `/auth/reset`, `/account`, `/polls` (my polls), `/polls/new`, `/polls/[id]` (public), `/polls/[id]/edit`, `/polls/[id]/export`, `/api/health`
+- `app/` routes: `/` (landing), `/auth`, `/auth/forgot`, `/auth/reset`, `/account`, `/polls` (my polls), `/polls/new`, `/polls/[id]` (public), `/polls/[id]/edit`, `/polls/[id]/export`, `/api/health`
 - `docs/` topic guides (see Documentation)
 - `.github/workflows/` CI and manual live checks; `scripts/e2e/`, `scripts/smoke.js`, `scripts/backup.js`
 - `components/` UI, including `ShareCard`, `VoteForm`, `ResultsList`
