@@ -1,0 +1,70 @@
+name: Live checks
+
+# Manual only. Runs the read-only smoke checks and the browser end-to-end flow against a
+# deployed copy of the app. The browser flow creates and then deletes a throwaway user and poll,
+# so it needs the Supabase service role key. Adding these two repository secrets is YOUR choice:
+#   SUPABASE_URL                 the project URL, https://<ref>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY    Supabase > Project Settings > API
+# Without them the smoke job still runs and the e2e job fails with a clear message. This workflow
+# never uploads artifacts, screenshots or logs containing user data (the repository is public).
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Deployed site to check (no trailing slash)
+        required: true
+        default: https://polling-app-green.vercel.app
+        type: string
+
+concurrency:
+  group: live-checks
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Smoke
+        working-directory: alx-polly
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: node scripts/smoke.js "$BASE_URL"
+
+  e2e:
+    name: Browser end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: smoke
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: alx-polly/scripts/e2e/package-lock.json
+
+      - name: Install the e2e dependencies
+        working-directory: alx-polly/scripts/e2e
+        run: npm ci
+
+      - name: Run the live flow
+        working-directory: alx-polly/scripts/e2e
+        env:
+          SITE_URL: ${{ inputs.base_url }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Chrome is preinstalled on GitHub's ubuntu runners.
+          CHROME_PATH: /usr/bin/google-chrome-stable
+        run: node run.js

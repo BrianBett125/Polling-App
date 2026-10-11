@@ -1,0 +1,13 @@
+{
+  "name": "alx-polly-live-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Live end-to-end check for the deployed polling app. Separate from the app: nothing here is bundled or installed with it.",
+  "scripts": {
+    "e2e": "node run.js",
+    "dry": "node run.js --dry"
+  },
+  "dependencies": {
+    "playwright-core": "1.64.0"
+  }
+}
