@@ -1,5 +1,7 @@
 # ALX Polly: polls with link and QR sharing
 
+**Live app: https://polling-app-green.vercel.app**
+
 Signed-in users create polls and manage their own. Anyone with a poll's link can open it, vote, and see results as vote counts and percentages. Each poll page shows a copyable link and a QR code for the same URL.
 
 ## Features
