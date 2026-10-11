@@ -56,7 +56,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto py-8">
+    <div className="max-w-md mx-auto lg:max-w-none">
       <Card>
         <CardHeader>
           <CardTitle as="h1">Reset your password</CardTitle>

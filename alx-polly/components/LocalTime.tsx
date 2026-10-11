@@ -1,17 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { formatLocal, formatUtc } from '@/lib/time-format';
 
-const UTC_FORMAT = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
-
-function utcText(date: Date): string {
-  return `${UTC_FORMAT.format(date)} UTC`;
-}
-
-function localText(date: Date): string {
-  // Visitor's own timezone, short name included so "10:30" is never ambiguous.
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' }).format(date);
-}
+const utcText = formatUtc;
+const localText = (date: Date) => formatLocal(date);
 
 /**
  * A moment in the visitor's timezone. The server (and the first client render) print an explicit UTC

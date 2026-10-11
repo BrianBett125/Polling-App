@@ -40,7 +40,7 @@ export function LiveRefresh({ enabled, total }: { enabled: boolean; total: numbe
     <>
       {enabled && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span aria-hidden="true" className="inline-block size-1.5 rounded-full bg-green-500" />
+          <span aria-hidden="true" className="inline-block size-2 rounded-full bg-success" />
           Updating live
         </p>
       )}

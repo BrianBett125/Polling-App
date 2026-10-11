@@ -51,7 +51,7 @@ describe('smoke.js against a stub app', () => {
       const headers = { 'x-content-type-options': 'nosniff', 'x-frame-options': 'SAMEORIGIN' };
       switch (req.url) {
         case '/':
-          res.writeHead(307, { location: '/polls' }).end();
+          res.writeHead(200, { ...headers, 'content-type': 'text/html' }).end('<h1>Ask the room.</h1><a href="/polls/new">Create a poll</a>');
           break;
         case '/polls':
         case '/polls/new':
@@ -110,7 +110,7 @@ describe('smoke.js against a stub app', () => {
     const base = await stub((res) => res.writeHead(404).end());
     const { code, out } = await run([base]);
     expect(code).toBe(0);
-    expect(out).toMatch(/^PASS {2}\/ redirects to \/polls/m);
+    expect(out).toMatch(/^PASS {2}\/ serves the landing page/m);
     expect(out).toMatch(/^SKIP {2}\/api\/health/m);
     expect(out).toMatch(/7\/8 passed, 1 skipped/);
   });

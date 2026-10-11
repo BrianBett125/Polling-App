@@ -67,7 +67,7 @@ CSP directives:
 - `connect-src 'self'`, the `NEXT_PUBLIC_SUPABASE_URL` origin, `https://*.supabase.co`, `wss://*.supabase.co`, Sentry ingest hosts, Vercel vitals hosts
 - `frame-src https://challenges.cloudflare.com`
 - `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'self'`
-- `upgrade-insecure-requests` in production only
+- `upgrade-insecure-requests` only where the site is served over https: on Vercel (it sets `VERCEL`), or when you set `CSP_UPGRADE_INSECURE_REQUESTS=1`. On plain `http://localhost` it would rewrite Next.js's own fetches to https and make every page update crawl
 
 Known limits:
 

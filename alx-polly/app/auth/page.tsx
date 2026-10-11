@@ -76,7 +76,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto py-8">
+    <div className="max-w-md mx-auto lg:max-w-none">
       <Card>
         <CardHeader>
           <CardTitle as="h1">{isLogin ? 'Sign In' : 'Sign Up'}</CardTitle>
@@ -122,7 +122,7 @@ export default function AuthPage() {
               />
               {isLogin && (
                 <div className="text-right">
-                  <Link href="/auth/forgot" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                  <Link href="/auth/forgot" className="text-sm font-semibold text-primary underline-offset-4 hover:underline">
                     Forgot password?
                   </Link>
                 </div>
@@ -137,7 +137,7 @@ export default function AuthPage() {
             <Button 
               type="button" 
               variant="ghost" 
-              className="w-full" 
+              className="w-full font-semibold text-primary hover:text-primary" 
               onClick={() => {
                 setIsLogin(!isLogin);
                 setError(null);

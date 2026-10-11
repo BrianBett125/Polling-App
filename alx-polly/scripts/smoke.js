@@ -60,9 +60,11 @@ async function runChecks(base, pollId, fetchImpl = fetch) {
   };
   const loc = (r) => r.headers.get('location') || '';
 
-  await check('/ redirects to /polls', async () => {
+  await check('/ serves the landing page with a way to create a poll', async () => {
     const r = await get('/');
-    must([307, 308].includes(r.status) && loc(r).endsWith('/polls'), `status ${r.status} location ${loc(r)}`);
+    const t = await r.text();
+    must(r.status === 200, `status ${r.status}`);
+    must(/Ask the room/.test(t) && /href="\/polls\/new"/.test(t), 'landing headline or create-poll link missing');
     return r.status;
   });
   await check('/polls redirects anonymous users to /auth', async () => {

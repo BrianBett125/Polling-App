@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props} />
+    <div ref={ref} className={cn("rounded-2xl border border-border/70 bg-card text-card-foreground shadow-soft", className)} {...props} />
   )
 )
 Card.displayName = "Card"
@@ -20,7 +20,7 @@ type CardTitleProps = React.HTMLAttributes<HTMLHeadingElement> & { as?: "h1" | "
 /** Defaults to h2 (cards sit under the page's h1). Pass as="h1" when the card title IS the page title. */
 const CardTitle = React.forwardRef<HTMLHeadingElement, CardTitleProps>(
   ({ className, as: Tag = "h2", ...props }, ref) => (
-    <Tag ref={ref} className={cn("text-2xl font-semibold leading-none tracking-tight", className)} {...props} />
+    <Tag ref={ref} className={cn("text-xl font-semibold leading-tight tracking-tight sm:text-2xl", className)} {...props} />
   )
 )
 CardTitle.displayName = "CardTitle"

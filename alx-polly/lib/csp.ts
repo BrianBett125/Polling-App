@@ -9,6 +9,10 @@
 export type CspEnv = {
   NODE_ENV?: string;
   NEXT_PUBLIC_SUPABASE_URL?: string;
+  /** Set by Vercel at build time: the site is served over https. */
+  VERCEL?: string;
+  /** Set to 1 to add upgrade-insecure-requests on a non-Vercel https host. */
+  CSP_UPGRADE_INSECURE_REQUESTS?: string;
 };
 
 function originOf(url: string | undefined): string | null {
@@ -53,7 +57,10 @@ export function buildCsp(env: CspEnv = process.env): string {
     "form-action 'self'",
     "frame-ancestors 'self'",
   ];
-  if (prod) directives.push('upgrade-insecure-requests');
+  // Only where the site is actually served over https (Vercel sets VERCEL; others can set
+  // CSP_UPGRADE_INSECURE_REQUESTS=1). On plain http://localhost the browser would rewrite Next's own
+  // fetches to https, they would fail, and every page update would fall back to a slow full reload.
+  if (prod && (env.VERCEL || env.CSP_UPGRADE_INSECURE_REQUESTS === '1')) directives.push('upgrade-insecure-requests');
   return directives.join('; ');
 }
 

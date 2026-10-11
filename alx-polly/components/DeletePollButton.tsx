@@ -27,7 +27,7 @@ export function DeletePollButton({ pollId, className }: { pollId: string; classN
 
   return (
     <div className={className}>
-      <Button variant="destructive" type="button" className="w-full" onClick={onClick} disabled={pending}>
+      <Button variant="ghost" type="button" className="w-full text-red-700 hover:bg-red-50 hover:text-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:hover:text-red-200" onClick={onClick} disabled={pending}>
         {pending ? 'Deleting…' : 'Delete'}
       </Button>
       {error && (

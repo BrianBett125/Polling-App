@@ -255,6 +255,22 @@ async function main() {
       await owner.getByRole('heading', { level: 1, name: throwaway.editedTitle }).waitFor({ state: 'visible' });
     });
 
+    await step('no horizontal scrolling on a 390px phone (home, sign in, the poll page)', async () => {
+      const ctx = await browser.newContext({ ...ctxOpts, viewport: { width: 390, height: 844 } });
+      const page = await ctx.newPage();
+      watch(page);
+      try {
+        for (const target of [`${config.siteUrl}/`, `${config.siteUrl}/auth`, url]) {
+          await page.goto(target, { waitUntil: 'networkidle' });
+          await page.waitForTimeout(800);
+          const { sw, iw } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
+          if (sw > iw) throw new Error(`${target} is ${sw}px wide in a ${iw}px viewport`);
+        }
+      } finally {
+        await ctx.close();
+      }
+    });
+
     await step('owner deletes the poll', async () => {
       await owner.goto(`${config.siteUrl}/polls`, { waitUntil: 'networkidle' });
       // The nearest ancestor of this poll's link that also holds a Delete button is its own card.

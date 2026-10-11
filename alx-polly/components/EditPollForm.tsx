@@ -141,10 +141,13 @@ export default function EditPollForm({ poll, options: initialOptions, optionsLoc
             <p className="text-sm text-muted-foreground" role="note">
               {OPTIONS_LOCKED_MESSAGE}
             </p>
-            <ol className="list-decimal space-y-1 pl-6 text-sm" aria-labelledby="options-label">
-              {options.map((o) => (
-                <li key={o.key} className="break-words">
-                  {o.text}
+            <ol className="space-y-2" aria-labelledby="options-label">
+              {options.map((o, i) => (
+                <li key={o.key} className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/40 p-3">
+                  <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-sm font-bold text-secondary-foreground">
+                    {String.fromCharCode(65 + (i % 26))}
+                  </span>
+                  <span className="min-w-0 break-words font-medium">{o.text}</span>
                 </li>
               ))}
             </ol>
@@ -194,11 +197,11 @@ export default function EditPollForm({ poll, options: initialOptions, optionsLoc
         }
       />
 
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" type="button" asChild>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <Button variant="outline" size="lg" type="button" asChild>
           <Link href={`/polls/${poll.id}`}>Cancel</Link>
         </Button>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending}>
           {pending ? 'Saving…' : 'Save'}
         </Button>
       </div>

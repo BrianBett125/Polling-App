@@ -12,8 +12,11 @@ export default async function AccountPage() {
   if (!user || !user.email) redirect('/auth?next=/account');
 
   return (
-    <div className="max-w-2xl mx-auto py-8 space-y-6">
-      <h1 className="text-2xl font-bold">Account</h1>
+    <div className="mx-auto max-w-2xl space-y-8">
+      <div className="animate-fade-up">
+        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Account</h1>
+        <p className="mt-2 text-lg text-muted-foreground">Manage how you sign in, and your data.</p>
+      </div>
       <AccountSettings email={user.email} />
     </div>
   );

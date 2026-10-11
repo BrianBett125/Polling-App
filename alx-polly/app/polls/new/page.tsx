@@ -82,10 +82,13 @@ export default function CreatePollPage() {
   return (
     <ProtectedRoute>
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-semibold mb-6">Create a new poll</h1>
+        <div className="animate-fade-up mb-8">
+          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Create a new poll</h1>
+          <p className="mt-2 text-lg text-muted-foreground">Ask a question, add the options, and share the link.</p>
+        </div>
         
         {error && (
-          <div role="alert" className="bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-300 p-4 rounded-md mb-4">
+          <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
             {error}
           </div>
         )}
@@ -121,7 +124,10 @@ export default function CreatePollPage() {
                 <Label>Options</Label>
                 <div className="space-y-2">
                   {options.map((option, index) => (
-                    <div key={index} className="flex items-center gap-2">
+                    <div key={index} className="flex items-center gap-2.5">
+                      <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary text-sm font-bold text-secondary-foreground">
+                        {String.fromCharCode(65 + (index % 26))}
+                      </span>
                       <Input 
                         placeholder={`Option ${index + 1}`} 
                         value={option}

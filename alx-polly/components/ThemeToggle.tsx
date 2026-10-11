@@ -59,21 +59,36 @@ export default function ThemeToggle() {
     apply(next);
   }, []);
 
+  const order: ThemeChoice[] = ['light', 'dark', 'system'];
+  const current = OPTIONS.find((o) => o.value === choice) ?? OPTIONS[2];
+  const next = order[(order.indexOf(choice) + 1) % order.length];
+
   return (
-    <div role="group" aria-label="Color theme" className="inline-flex rounded-md border border-input p-0.5">
-      {OPTIONS.map(({ value, label, Icon }) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => select(value)}
-          aria-pressed={choice === value}
-          aria-label={label}
-          title={label}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-sm text-foreground hover:bg-accent aria-pressed:bg-primary aria-pressed:text-primary-foreground"
-        >
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </button>
-      ))}
-    </div>
+    <>
+      {/* Phones: a single button that cycles light, dark, system. */}
+      <button
+        type="button"
+        onClick={() => select(next)}
+        aria-label={`Color theme: ${current.label}. Switch to ${next}.`}
+        className="inline-flex size-9 items-center justify-center rounded-full border border-border/70 bg-card/70 text-foreground shadow-sm transition-colors hover:bg-accent sm:hidden"
+      >
+        <current.Icon className="size-4" aria-hidden="true" />
+      </button>
+      <div role="group" aria-label="Color theme" className="hidden rounded-full border border-border/70 bg-card/70 p-0.5 shadow-sm sm:inline-flex">
+        {OPTIONS.map(({ value, label, Icon }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => select(value)}
+            aria-pressed={choice === value}
+            aria-label={label}
+            title={label}
+            className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-sm"
+          >
+            <Icon className="h-4 w-4" aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+    </>
   );
 }

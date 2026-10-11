@@ -58,7 +58,10 @@ describe('buildCsp', () => {
   });
 
   it('upgrades insecure requests in production only', () => {
-    expect(buildCsp(prod).split('; ')).toContain('upgrade-insecure-requests');
+    expect(buildCsp({ ...prod, VERCEL: '1' }).split('; ')).toContain('upgrade-insecure-requests');
+    expect(buildCsp({ ...prod, CSP_UPGRADE_INSECURE_REQUESTS: '1' }).split('; ')).toContain('upgrade-insecure-requests');
+    // plain http (for example `next start` on localhost): upgrading would break Next's own fetches
+    expect(buildCsp(prod)).not.toContain('upgrade-insecure-requests');
     expect(buildCsp(dev)).not.toContain('upgrade-insecure-requests');
   });
 
