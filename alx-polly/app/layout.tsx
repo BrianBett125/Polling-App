@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
@@ -40,6 +40,26 @@ export const metadata: Metadata = {
   title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
   description,
   openGraph: { type: "website", siteName: SITE_NAME, title: SITE_NAME, description },
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "ALX Polly",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8f7ff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0a18" },
+  ],
 };
 
 export default function RootLayout({
