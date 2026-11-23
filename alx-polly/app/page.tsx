@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, BarChart3, CalendarClock, Download, Link2, QrCode, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { HeroQr } from '@/components/HeroQr';
+import InstallAppButton from '@/components/InstallAppButton';
 import { resolveSiteUrl } from '@/lib/seo';
 
 const FEATURES = [
@@ -79,9 +80,10 @@ export default function Home() {
             <Button size="lg" variant="outline" asChild>
               <a href="#how">See how it works</a>
             </Button>
+            <InstallAppButton />
           </div>
           <ul className="mt-9 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            {['Free to use', 'No app to install', 'Works on any phone'].map((t) => (
+            {['Free to use', 'No app store needed', 'Installable on phones'].map((t) => (
               <li key={t} className="flex items-center gap-2">
                 <span aria-hidden="true" className="flex size-4 items-center justify-center rounded-full bg-success-soft text-[10px] font-bold text-success">
                   ✓
