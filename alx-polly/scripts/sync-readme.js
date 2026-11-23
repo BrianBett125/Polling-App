@@ -22,15 +22,18 @@ function syncReadme() {
     }
 
     const srcContent = fs.readFileSync(src, 'utf8');
+    // The root copy lives one level above alx-polly/, so relative asset paths need the folder prefix.
+    // Without this the source README's `docs/screenshots/...` images 404 when viewed from the repo root.
+    const rootContent = srcContent.replace(/\]\(docs\/screenshots\//g, '](alx-polly/docs/screenshots/');
     const destExists = fs.existsSync(dest);
     const destContent = destExists ? fs.readFileSync(dest, 'utf8') : '';
 
-    if (destExists && srcContent === destContent) {
+    if (destExists && rootContent === destContent) {
       console.log('[sync-readme] Root README is already up-to-date.');
       return;
     }
 
-    fs.writeFileSync(dest, srcContent, 'utf8');
+    fs.writeFileSync(dest, rootContent, 'utf8');
     console.log(`[sync-readme] Root README updated from app README → ${path.relative(repoRoot, dest)}`);
   } catch (err) {
     console.error('[sync-readme] Failed to sync README:', err);

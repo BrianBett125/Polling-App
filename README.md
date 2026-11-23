@@ -4,6 +4,44 @@
 
 Signed-in users create polls and manage their own. Anyone with a poll's link can open it, vote, and see results as vote counts and percentages. Each poll page shows a copyable link and a QR code for the same URL.
 
+## Screenshots
+
+Real screenshots of the app running a production build. They live in `docs/screenshots/`.
+
+**Landing page** (light and dark)
+
+| Light | Dark |
+| --- | --- |
+| ![Landing page, light theme](alx-polly/docs/screenshots/landing-light.png) | ![Landing page, dark theme](alx-polly/docs/screenshots/landing-dark.png) |
+
+**Sign in and sign up**
+
+| Sign in | Sign up |
+| --- | --- |
+| ![Sign in](alx-polly/docs/screenshots/auth-signin.png) | ![Sign up](alx-polly/docs/screenshots/auth-signup.png) |
+
+**Your polls, and creating one**
+
+| My polls | Create a poll |
+| --- | --- |
+| ![My polls list](alx-polly/docs/screenshots/my-polls.png) | ![Create a poll, with options and settings](alx-polly/docs/screenshots/create-poll.png) |
+
+**The poll page (copyable link and QR code) and editing it**
+
+| Poll page | Edit a poll |
+| --- | --- |
+| ![Poll page with the share link and QR code](alx-polly/docs/screenshots/poll-owner.png) | ![Editing a poll](alx-polly/docs/screenshots/edit-poll.png) |
+
+**Voting, and the results**
+
+| Vote | Results |
+| --- | --- |
+| ![Voter view with the options and vote button](alx-polly/docs/screenshots/voter-view.png) | ![Results with counts and percentages](alx-polly/docs/screenshots/results.png) |
+
+**Account settings**
+
+![Account page with change password and delete account](alx-polly/docs/screenshots/account.png)
+
 ## Features
 
 **Polls**
