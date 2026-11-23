@@ -7,3 +7,6 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Local agent guidelines — kept local, not published
+CLAUDE.md
